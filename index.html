@@ -652,6 +652,49 @@
 
     .drawing-active { background: #fef9c3 !important; border-color: #facc15 !important; }
 
+    /* ── BARRA DE CAPAS ── */
+    .layer-bar {
+      background: white;
+      border-bottom: 1px solid var(--border);
+      padding: 4px 10px;
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .layer-bar span {
+      font-size: 0.7rem;
+      color: var(--muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      margin-right: 2px;
+    }
+    .layer-btn {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 10px;
+      border-radius: 12px;
+      border: 1.5px solid var(--border);
+      background: white;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--muted);
+      cursor: pointer;
+      transition: all 0.15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .layer-btn.active {
+      border-color: var(--primary);
+      background: #eff6ff;
+      color: var(--primary);
+    }
+    .layer-btn.active-green {
+      border-color: var(--success);
+      background: #f0fdf4;
+      color: var(--success);
+    }
+
     /* ── CANVAS mínimo visible ── */
     .canvas-wrap { min-height: 180px; }
 
@@ -970,15 +1013,26 @@
 
     <!-- Toolbar marcadores: 2 filas -->
     <div class="toolbar" id="toolbar-markers" style="display:none;flex-wrap:wrap;gap:6px;padding:8px 10px;">
-      <!-- Fila 1: iconos -->
+      <!-- Fila 1: nombre + borrar -->
+      <div style="display:flex;gap:8px;width:100%;align-items:center;">
+        <input class="cable-name-input" id="markerNameInput" placeholder="Nombre marcador..." maxlength="20" style="flex:1;min-width:0;" />
+        <button class="btn-del-marker" id="btnDelMarker" onclick="toggleDeleteMarker()" style="flex-shrink:0;">🗑 Borrar</button>
+      </div>
+      <!-- Fila 2: iconos -->
       <div style="display:flex;gap:6px;align-items:center;flex:1;min-width:0;">
         <button class="marker-btn selected" data-mtype="data" onclick="selectMarkerType(this)">🔌<span>RJ45</span></button>
         <button class="marker-btn" data-mtype="wifi"          onclick="selectMarkerType(this)">📶<span>WiFi</span></button>
         <button class="marker-btn" data-mtype="rack"          onclick="selectMarkerType(this)">🗄️<span>Rack</span></button>
         <button class="marker-btn" data-mtype="sw"            onclick="selectMarkerType(this)">🔀<span>Switch</span></button>
         <button class="marker-btn" data-mtype="cam"           onclick="selectMarkerType(this)">📷<span>Cámara</span></button>
-        <button class="btn-del-marker" id="btnDelMarker" onclick="toggleDeleteMarker()" style="margin-left:auto;">🗑 Borrar</button>
       </div>
+    </div>
+
+    <!-- Barra de capas -->
+    <div class="layer-bar">
+      <span>Capas:</span>
+      <button class="layer-btn active" id="layerBtnCables" onclick="toggleLayer('cables')">✏️ Cables</button>
+      <button class="layer-btn active-green" id="layerBtnMarkers" onclick="toggleLayer('markers')">📍 Marcadores</button>
     </div>
 
     <div class="canvas-wrap" id="drawWrap">
@@ -1067,10 +1121,14 @@ let selectedColor = '#2563eb';
 let margin = 0.10;
 
 // Marcadores
-let markers = [];          // [{id, type, x, y}] en coords de imagen
+let markers = [];          // [{id, type, x, y, name}] en coords de imagen
 let selectedMarkerType = 'data';
 let deleteMarkerMode = false;
 let activeTab = 'cables';
+
+// Capas
+let showCables = true;
+let showMarkers = true;
 
 const MARKER_TYPES = {
   data: { emoji: '🔌', label: 'Toma RJ45', color: '#2563eb' },
@@ -1306,7 +1364,8 @@ function renderDraw() {
   drawCtx.drawImage(img, offsetX, offsetY, imgW * zoomLevel, imgH * zoomLevel);
 
   // Cables guardados (puntos en espacio imagen → convertir a canvas)
-  cables.forEach(cable => {
+  if (!showCables) { /* capa cables oculta */ }
+  else cables.forEach(cable => {
     if (cable.points.length < 2) return;
     const c0 = toCvs(cable.points[0].x, cable.points[0].y);
     drawCtx.beginPath();
@@ -1351,13 +1410,15 @@ function renderDraw() {
   }
 
   // Marcadores
-  markers.forEach(m => {
-    const c = toCvs(m.x, m.y);
-    drawMarkerOnCanvas(drawCtx, m.type, c.x, c.y);
-  });
+  if (showMarkers) {
+    markers.forEach(m => {
+      const c = toCvs(m.x, m.y);
+      drawMarkerOnCanvas(drawCtx, m.type, c.x, c.y, m.name);
+    });
+  }
 }
 
-function drawMarkerOnCanvas(ctx, type, cx, cy) {
+function drawMarkerOnCanvas(ctx, type, cx, cy, name) {
   const mt = MARKER_TYPES[type];
   const r = 16;
   // Sombra
@@ -1379,6 +1440,19 @@ function drawMarkerOnCanvas(ctx, type, cx, cy) {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(mt.emoji, cx, cy);
+
+  // Nombre debajo del icono
+  if (name) {
+    ctx.font = 'bold 10px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    // Fondo blanco semitransparente para legibilidad
+    const tw = ctx.measureText(name).width;
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    ctx.fillRect(cx - tw / 2 - 2, cy + r + 1, tw + 4, 13);
+    ctx.fillStyle = mt.color;
+    ctx.fillText(name, cx, cy + r + 2);
+  }
 
   // Modo borrar: cruz roja encima
   if (deleteMarkerMode) {
@@ -1434,8 +1508,9 @@ function onDrawPointerUp(e) {
         const idx = markers.findIndex(m => Math.hypot(m.x - imgPt.x, m.y - imgPt.y) < HIT);
         if (idx !== -1) { markers.splice(idx, 1); renderDraw(); }
       } else {
-        // Colocar marcador
-        markers.push({ id: Date.now(), type: selectedMarkerType, x: imgPt.x, y: imgPt.y });
+        // Colocar marcador con nombre opcional
+        const mName = document.getElementById('markerNameInput').value.trim();
+        markers.push({ id: Date.now(), type: selectedMarkerType, x: imgPt.x, y: imgPt.y, name: mName });
         renderDraw();
       }
     }
@@ -1603,6 +1678,22 @@ function updateMargin() {
   const base = cables.reduce((s, c) => s + cableTotal(c), 0);
   const total = base * (1 + margin);
   document.getElementById('totalMeters').textContent = `${total.toFixed(2)} m`;
+}
+
+// ── CAPAS ──
+function toggleLayer(layer) {
+  if (layer === 'cables') {
+    showCables = !showCables;
+    const btn = document.getElementById('layerBtnCables');
+    btn.classList.toggle('active', showCables);
+    btn.style.opacity = showCables ? '1' : '0.45';
+  } else {
+    showMarkers = !showMarkers;
+    const btn = document.getElementById('layerBtnMarkers');
+    btn.classList.toggle('active-green', showMarkers);
+    btn.style.opacity = showMarkers ? '1' : '0.45';
+  }
+  renderDraw();
 }
 
 // ── TABS ──
@@ -1896,6 +1987,7 @@ function doNewProject() {
   img = null; imgW = 0; imgH = 0;
   scale = null; calibPts = []; calibPhase = 'A';
   cables = []; currentPoints = []; markers = []; drawingActive = false; deleteMarkerMode = false;
+  showCables = true; showMarkers = true;
   calibCanvas = null; calibCtx = null;
   drawCanvas = null; drawCtx = null;
   document.getElementById('btnGoCalib').disabled = true;
