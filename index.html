@@ -1543,6 +1543,9 @@ function onDrawPointerUp(e) {
       } else {
         // Colocar marcador con nombre opcional
         const mName = document.getElementById('markerNameInput').value.trim();
+        if (mName && markers.some(m => m.name && m.name.toLowerCase() === mName.toLowerCase())) {
+          toast(`Ya existe un marcador llamado "${mName}"`); return;
+        }
         markers.push({ id: Date.now(), type: selectedMarkerType, x: imgPt.x, y: imgPt.y, name: mName });
         renderDraw();
       }
@@ -1583,6 +1586,10 @@ function finishCable() {
 
   const nameInput = document.getElementById('cableNameInput');
   const name = nameInput.value.trim() || `Cable ${cables.length + 1}`;
+
+  if (cables.some(c => c.name.toLowerCase() === name.toLowerCase())) {
+    toast(`Ya existe un cable llamado "${name}"`); return;
+  }
 
   cables.push({ name, color: selectedColor, points: [...currentPoints], meters, extraDrop: 0, extraSlack: 0 });
   currentPoints = [];
