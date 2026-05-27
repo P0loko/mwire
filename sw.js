@@ -19,9 +19,11 @@ const CACHE_NAME = 'mwire-v1';
 
 // Assets estáticos que rara vez cambian → cache-first
 const STATIC_ASSETS = [
-  '/manifest.json',
-  '/icon-192.png',
-  '/icon-512.png',
+  '/mwire/',
+  '/mwire/index.html',
+  '/mwire/manifest.json',
+  '/mwire/icon-192.png',
+  '/mwire/icon-512.png',
 ];
 
 // ── INSTALL: precachear assets estáticos ───────────────────
@@ -75,7 +77,7 @@ self.addEventListener('fetch', event => {
           return response;
         })
         .catch(() => caches.match(event.request)
-          .then(cached => cached || caches.match('/index.html'))
+          .then(cached => cached || caches.match('/mwire/index.html'))
         )
     );
   } else {
