@@ -679,11 +679,13 @@
       display: none;
       padding: 8px 16px;
       padding-bottom: max(12px, env(safe-area-inset-bottom));
+      overflow-y: auto;
+      max-height: 42vh;
     }
     #drawerContent.open { display: block; }
     #drawerContent .scroll-panel {
-      max-height: 200px;
-      overflow-y: auto;
+      /* El scroll ahora lo gestiona #drawerContent — sin límite interno */
+      overflow: visible;
     }
 
     /* ── SCROLL PANEL (resto de pantallas) ── */
@@ -1682,7 +1684,7 @@ function resetZoom() {
 document.addEventListener('touchmove', e => {
   if (e.touches.length !== 1) return;
   // Permitir scroll dentro de paneles desplazables
-  if (e.target.closest('.scroll-panel, .project-list, #drawerContent, .save-modal-box')) return;
+  if (e.target.closest('.scroll-panel, .project-list, #drawerContent, .drawer, .save-modal-box')) return;
   if (document.scrollingElement?.scrollTop === 0) {
     e.preventDefault();
   }
