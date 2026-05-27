@@ -1,0 +1,2039 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>MWire – Medidor de Cable UTP</title>
+
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#2563eb" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="MWire" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* Bloquear pull-to-refresh y overscroll del navegador */
+    html, body {
+      overscroll-behavior: none;
+      overscroll-behavior-y: none;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    :root {
+      --primary: #2563eb;
+      --primary-dark: #1d4ed8;
+      --danger: #dc2626;
+      --success: #16a34a;
+      --bg: #f1f5f9;
+      --card: #ffffff;
+      --text: #1e293b;
+      --muted: #64748b;
+      --border: #e2e8f0;
+      --radius: 12px;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;   /* fallback navegadores antiguos */
+      height: 100dvh;  /* excluye barra de navegación del sistema */
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── HEADER ── */
+    header {
+      background: var(--primary);
+      color: white;
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    header svg { flex-shrink: 0; }
+    header h1 { font-size: 1.2rem; font-weight: 700; letter-spacing: 0.5px; }
+    header span { font-size: 0.75rem; opacity: 0.8; margin-left: auto; }
+
+    /* ── STEPPER ── */
+    .stepper {
+      display: flex;
+      background: white;
+      border-bottom: 1px solid var(--border);
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .stepper::-webkit-scrollbar { display: none; }
+    .step {
+      flex: 1;
+      min-width: 80px;
+      padding: 10px 8px;
+      text-align: center;
+      font-size: 0.7rem;
+      color: var(--muted);
+      border-bottom: 3px solid transparent;
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+    .step.active {
+      color: var(--primary);
+      border-bottom-color: var(--primary);
+      font-weight: 600;
+    }
+    .step.done {
+      color: var(--success);
+      border-bottom-color: var(--success);
+    }
+    .step-num {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 20px; height: 20px;
+      border-radius: 50%;
+      background: var(--border);
+      font-size: 0.65rem;
+      font-weight: 700;
+      margin-bottom: 3px;
+    }
+    .step.active .step-num { background: var(--primary); color: white; }
+    .step.done .step-num { background: var(--success); color: white; }
+
+    /* ── MAIN ── */
+    main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .screen { display: none; flex: 1; flex-direction: column; overflow: hidden; }
+    .screen.active { display: flex; }
+
+    /* ── SCREEN 1: SUBIR PLANO ── */
+    .upload-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 32px 24px;
+      gap: 20px;
+    }
+    .upload-options {
+      display: flex;
+      gap: 14px;
+      width: 100%;
+      max-width: 360px;
+    }
+    .upload-box {
+      flex: 1;
+      border: 2px dashed var(--primary);
+      border-radius: var(--radius);
+      padding: 28px 16px;
+      text-align: center;
+      background: white;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .upload-box:active { background: #eff6ff; }
+    .upload-box svg { color: var(--primary); margin-bottom: 10px; }
+    .upload-box p { color: var(--text); font-weight: 600; font-size: 0.9rem; margin-bottom: 4px; }
+    .upload-box small { color: var(--muted); font-size: 0.75rem; }
+    .upload-box input { display: none; }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 24px;
+      border-radius: 8px;
+      border: none;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-primary:active { background: var(--primary-dark); transform: scale(0.97); }
+    .btn-danger { background: var(--danger); color: white; }
+    .btn-outline {
+      background: white;
+      color: var(--primary);
+      border: 2px solid var(--primary);
+    }
+    .btn-sm { padding: 8px 14px; font-size: 0.82rem; }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-full { width: 100%; justify-content: center; }
+
+    /* ── SCREEN 2: CALIBRAR ESCALA ── */
+    #screen2 .bottom-panel {
+      overflow-y: auto;
+      max-height: 38vh;
+      flex-shrink: 0;
+    }
+
+    .canvas-wrap {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+      background: #1e293b;
+      touch-action: none;
+    }
+    #calibCanvas, #drawCanvas {
+      position: absolute;
+      top: 0; left: 0;
+      cursor: crosshair;
+      touch-action: none;
+    }
+
+    .bottom-panel {
+      background: white;
+      border-top: 1px solid var(--border);
+      padding: 14px 16px;
+      padding-bottom: max(14px, env(safe-area-inset-bottom) + 14px);
+    }
+    .panel-title {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 10px;
+    }
+
+    .calib-hint {
+      font-size: 0.88rem;
+      color: var(--text);
+      margin-bottom: 12px;
+      line-height: 1.4;
+    }
+    .calib-hint strong { color: var(--primary); }
+
+    .calib-points {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .point-badge {
+      flex: 1;
+      padding: 8px;
+      border-radius: 8px;
+      background: var(--bg);
+      text-align: center;
+      font-size: 0.78rem;
+      color: var(--muted);
+      border: 1px solid var(--border);
+    }
+    .point-badge.set {
+      background: #eff6ff;
+      border-color: var(--primary);
+      color: var(--primary);
+      font-weight: 600;
+    }
+
+    .input-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .input-row input {
+      flex: 1;
+      padding: 10px 12px;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      font-size: 0.95rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .input-row input:focus { border-color: var(--primary); }
+    .input-row label { font-size: 0.88rem; color: var(--muted); white-space: nowrap; }
+
+    /* ── SCREEN 3: TRAZAR CABLES ── */
+    .toolbar {
+      background: white;
+      border-bottom: 1px solid var(--border);
+      padding: 7px 10px;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .toolbar::-webkit-scrollbar { display: none; }
+
+    /* ── TABS CABLES / MARCADORES ── */
+    .tab-bar {
+      display: flex;
+      background: white;
+      border-bottom: 1px solid var(--border);
+    }
+    .tab-bar .tab {
+      flex: 1;
+      padding: 9px 8px;
+      border: none;
+      background: none;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--muted);
+      cursor: pointer;
+      border-bottom: 3px solid transparent;
+      transition: all 0.15s;
+    }
+    .tab-bar .tab.active {
+      color: var(--primary);
+      border-bottom-color: var(--primary);
+    }
+
+    /* ── MARCADORES ── */
+    .marker-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      padding: 6px 10px;
+      border-radius: 8px;
+      border: 2px solid transparent;
+      background: var(--bg);
+      cursor: pointer;
+      font-size: 1.3rem;
+      line-height: 1;
+      flex-shrink: 0;
+      transition: all 0.15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .marker-btn span { font-size: 0.6rem; color: var(--muted); font-weight: 600; }
+    .marker-btn.selected { border-color: var(--primary); background: #eff6ff; }
+    .marker-btn.selected span { color: var(--primary); }
+
+    .btn-del-marker {
+      padding: 7px 12px;
+      border-radius: 8px;
+      border: 2px solid var(--border);
+      background: white;
+      color: var(--muted);
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .btn-del-marker.active { border-color: var(--danger); background: #fef2f2; color: var(--danger); }
+
+    .color-dot {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      border: 3px solid transparent;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: transform 0.15s;
+    }
+    .color-dot.selected { border-color: var(--text); transform: scale(1.15); }
+
+    .cable-name-input {
+      flex: 1;
+      min-width: 80px;
+      padding: 7px 10px;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      font-size: 0.85rem;
+      outline: none;
+    }
+    .cable-name-input:focus { border-color: var(--primary); }
+
+    /* ── CABLE LIST ── */
+    .cable-list {
+      padding: 0;
+      margin: 0;
+      list-style: none;
+    }
+    .cable-item {
+      border-bottom: 1px solid var(--border);
+      font-size: 0.88rem;
+    }
+    .cable-item:last-child { border-bottom: none; }
+    .cable-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 0;
+    }
+    .cable-color {
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .cable-name { flex: 1; font-weight: 500; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .cable-meters { color: var(--primary); font-weight: 700; white-space: nowrap; }
+    .cable-del {
+      background: none;
+      border: none;
+      color: var(--danger);
+      cursor: pointer;
+      padding: 2px 4px;
+      font-size: 1rem;
+      line-height: 1;
+    }
+    .cable-expand {
+      background: none;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      padding: 2px 4px;
+      font-size: 0.85rem;
+      line-height: 1;
+      transition: transform 0.2s;
+    }
+    .cable-expand.open { transform: rotate(180deg); color: var(--primary); }
+
+    .cable-extras {
+      display: none;
+      background: #f8fafc;
+      border-top: 1px solid var(--border);
+      padding: 10px 12px;
+      gap: 10px;
+      flex-direction: column;
+    }
+    .cable-extras.open { display: flex; }
+    .extra-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.82rem;
+    }
+    .extra-row label { color: var(--muted); flex: 1; }
+    .extra-input {
+      width: 64px;
+      padding: 5px 8px;
+      border: 1.5px solid var(--border);
+      border-radius: 6px;
+      font-size: 0.88rem;
+      text-align: right;
+      outline: none;
+    }
+    .extra-input:focus { border-color: var(--primary); }
+    .extra-breakdown {
+      font-size: 0.75rem;
+      color: var(--muted);
+      text-align: right;
+    }
+
+    .total-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 0 4px;
+      font-size: 1rem;
+      font-weight: 700;
+    }
+    .total-row span:last-child { color: var(--primary); font-size: 1.15rem; }
+
+    .global-coca-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 8px;
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+    .global-coca-row label { white-space: nowrap; }
+    .global-coca-input {
+      width: 58px;
+      padding: 4px 8px;
+      border: 1.5px solid var(--border);
+      border-radius: 6px;
+      font-size: 0.88rem;
+      text-align: right;
+      outline: none;
+    }
+    .global-coca-input:focus { border-color: var(--primary); }
+    .btn-apply-coca {
+      flex: 1;
+      padding: 5px 10px;
+      background: var(--primary);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .btn-apply-coca:active { background: var(--primary-dark); }
+
+    .margin-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 8px;
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+    .margin-row input[type=range] { flex: 1; accent-color: var(--primary); }
+    .margin-badge {
+      background: #eff6ff;
+      color: var(--primary);
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 0.8rem;
+    }
+
+    /* ── MENÚ LATERAL (DRAWER) ── */
+    .drawer-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.45);
+      z-index: 200;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.25s;
+    }
+    .drawer-overlay.open { opacity: 1; pointer-events: all; }
+
+    .drawer {
+      position: fixed; top: 0; right: 0;
+      width: min(320px, 90vw);
+      height: 100%;
+      background: white;
+      z-index: 201;
+      display: flex; flex-direction: column;
+      transform: translateX(100%);
+      transition: transform 0.28s cubic-bezier(.4,0,.2,1);
+      box-shadow: -4px 0 24px rgba(0,0,0,0.18);
+    }
+    .drawer.open { transform: translateX(0); }
+
+    .drawer-header {
+      background: var(--primary);
+      color: white;
+      padding: 16px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .drawer-header h2 { font-size: 1rem; font-weight: 700; flex: 1; }
+    .drawer-close {
+      background: none; border: none; color: white;
+      font-size: 1.4rem; cursor: pointer; line-height: 1; padding: 2px 6px;
+    }
+
+    .drawer-section {
+      padding: 14px 16px 8px;
+      border-bottom: 1px solid var(--border);
+    }
+    .drawer-section-title {
+      font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.6px; color: var(--muted); margin-bottom: 10px;
+    }
+
+    .project-list { flex: 1; overflow-y: auto; padding: 8px 0; }
+
+    .project-card {
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 16px;
+      cursor: pointer;
+      transition: background 0.15s;
+      border-bottom: 1px solid var(--border);
+    }
+    .project-card:active { background: #eff6ff; }
+    .project-thumb {
+      width: 52px; height: 40px;
+      border-radius: 6px; object-fit: cover;
+      background: var(--bg); flex-shrink: 0;
+      border: 1px solid var(--border);
+    }
+    .project-info { flex: 1; min-width: 0; }
+    .project-name {
+      font-size: 0.9rem; font-weight: 600;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .project-meta { font-size: 0.75rem; color: var(--muted); margin-top: 2px; }
+    .project-del {
+      background: none; border: none; color: var(--danger);
+      font-size: 1.1rem; cursor: pointer; padding: 4px 6px;
+      flex-shrink: 0;
+    }
+    .project-empty {
+      text-align: center; padding: 32px 16px;
+      color: var(--muted); font-size: 0.88rem; line-height: 1.6;
+    }
+
+    /* Botón hamburguesa en header */
+    .btn-menu {
+      background: rgba(255,255,255,0.18);
+      border: none; color: white; cursor: pointer;
+      border-radius: 8px; padding: 6px 8px;
+      font-size: 1.2rem; line-height: 1;
+      margin-left: auto;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn-menu:active { background: rgba(255,255,255,0.3); }
+
+    /* Modal de guardar proyecto */
+    .save-modal {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 300;
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.2s;
+    }
+    .save-modal.open { opacity: 1; pointer-events: all; }
+    .save-modal-box {
+      background: white; border-radius: var(--radius);
+      padding: 24px; width: min(320px, 90vw);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+      transform: scale(0.95); transition: transform 0.2s;
+    }
+    .save-modal.open .save-modal-box { transform: scale(1); }
+    .save-modal-box h3 { font-size: 1rem; font-weight: 700; margin-bottom: 14px; }
+    .save-modal-box input {
+      width: 100%; padding: 10px 12px;
+      border: 1.5px solid var(--border); border-radius: 8px;
+      font-size: 0.95rem; outline: none; margin-bottom: 14px;
+    }
+    .save-modal-box input:focus { border-color: var(--primary); }
+    .save-modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+    /* ── TOAST ── */
+    .toast {
+      position: fixed;
+      bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: #1e293b;
+      color: white;
+      padding: 10px 20px;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      opacity: 0;
+      transition: all 0.3s;
+      pointer-events: none;
+      z-index: 999;
+      white-space: nowrap;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* ── FLOATING BUTTONS ── */
+    .fab-row {
+      position: absolute;
+      bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+      right: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      z-index: 10;
+    }
+    .fab {
+      width: 48px; height: 48px;
+      border-radius: 50%;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+      -webkit-tap-highlight-color: transparent;
+      font-size: 1.1rem;
+      transition: transform 0.15s;
+    }
+    .fab:active { transform: scale(0.92); }
+    .fab-blue { background: var(--primary); color: white; }
+    .fab-red { background: var(--danger); color: white; }
+    .fab-green { background: var(--success); color: white; }
+
+    .drawing-active { background: #fef9c3 !important; border-color: #facc15 !important; }
+
+    /* ── CANVAS mínimo visible ── */
+    .canvas-wrap { min-height: 180px; }
+
+    /* ── DRAWER PLEGABLE SCREEN 3 ── */
+    #bottomDrawer {
+      background: white;
+      border-top: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    #drawerStrip {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 16px;
+      padding-bottom: max(10px, env(safe-area-inset-bottom));
+      cursor: pointer;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    #drawerStrip.expanded {
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+    }
+    #drawerContent {
+      display: none;
+      padding: 8px 16px;
+      padding-bottom: max(12px, env(safe-area-inset-bottom));
+    }
+    #drawerContent.open { display: block; }
+    #drawerContent .scroll-panel {
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    /* ── SCROLL PANEL (resto de pantallas) ── */
+    .scroll-panel {
+      overflow-y: auto;
+      max-height: 220px;
+    }
+
+    /* ── NAV BOTTOM ── */
+    .nav-bottom {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      padding: 12px 16px;
+      background: white;
+      border-top: 1px solid var(--border);
+    }
+
+    @media (min-height: 700px) {
+      #drawerContent .scroll-panel { max-height: 280px; }
+    }
+
+    /* ── BANNER ACTUALIZACIÓN DISPONIBLE ── */
+    #updateBanner {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 600;
+      background: #1e293b;
+      color: white;
+      padding: 10px 16px;
+      align-items: center;
+      gap: 10px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+      font-size: 0.85rem;
+    }
+    #updateBanner.show { display: flex; }
+    #updateBanner span { flex: 1; }
+    #updateBanner strong { color: #93c5fd; }
+    .btn-update-reload {
+      padding: 7px 14px;
+      background: var(--primary);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .btn-update-dismiss {
+      background: none;
+      border: none;
+      color: #94a3b8;
+      font-size: 1.2rem;
+      cursor: pointer;
+      padding: 2px 4px;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+
+    /* ── BANNER INSTALAR PWA ── */
+    #installBanner {
+      display: none;
+      position: fixed;
+      bottom: max(16px, env(safe-area-inset-bottom) + 8px);
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 500;
+      background: white;
+      border: 1.5px solid var(--border);
+      border-radius: 14px;
+      box-shadow: 0 6px 24px rgba(0,0,0,0.18);
+      padding: 12px 16px;
+      width: min(340px, calc(100vw - 32px));
+      align-items: center;
+      gap: 12px;
+    }
+    #installBanner.show { display: flex; }
+    #installBanner img { width: 44px; height: 44px; border-radius: 10px; flex-shrink: 0; }
+    #installBanner .install-text { flex: 1; min-width: 0; }
+    #installBanner .install-text strong { display: block; font-size: 0.88rem; }
+    #installBanner .install-text span { font-size: 0.75rem; color: var(--muted); }
+    #installBanner .install-actions { display: flex; gap: 6px; flex-shrink: 0; }
+    .btn-install {
+      padding: 8px 14px;
+      background: var(--primary);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .btn-install-dismiss {
+      padding: 8px;
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-size: 1.2rem;
+      cursor: pointer;
+      line-height: 1;
+    }
+  </style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+    <path d="M4 4h16v16H4z" rx="2"/>
+    <path d="M9 9h6M9 12h4M9 15h2"/>
+    <circle cx="17" cy="15" r="2" fill="white" stroke="none"/>
+    <path d="M17 13v-1M17 17v1M15 15h-1M19 15h1" stroke="white" stroke-width="1.5"/>
+  </svg>
+  <h1>MWire</h1>
+  <button class="btn-menu" onclick="openDrawer()" title="Menú">☰</button>
+</header>
+
+<!-- DRAWER OVERLAY -->
+<div class="drawer-overlay" id="drawerOverlay" onclick="closeDrawer()"></div>
+
+<!-- DRAWER -->
+<div class="drawer" id="drawer">
+  <div class="drawer-header">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <rect x="2" y="3" width="20" height="18" rx="2"/>
+      <path d="M8 3v18M2 9h6M2 15h6"/>
+    </svg>
+    <h2>Menú</h2>
+    <button class="drawer-close" onclick="closeDrawer()">✕</button>
+  </div>
+
+  <!-- Sección: Proyecto actual -->
+  <div class="drawer-section">
+    <div class="drawer-section-title">Proyecto actual</div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-primary btn-sm" style="flex:1" onclick="openSaveModal()">
+        💾 Guardar proyecto
+      </button>
+      <button class="btn btn-outline btn-sm" style="flex:1" onclick="newProject()">
+        ＋ Nuevo
+      </button>
+    </div>
+  </div>
+
+  <!-- Sección: Proyectos guardados -->
+  <div class="drawer-section" style="border-bottom:none;padding-bottom:4px;">
+    <div class="drawer-section-title">Proyectos guardados</div>
+  </div>
+  <div class="project-list" id="projectList"></div>
+</div>
+
+<!-- MODAL GUARDAR PROYECTO -->
+<div class="save-modal" id="saveModal">
+  <div class="save-modal-box">
+    <h3>💾 Guardar proyecto</h3>
+    <input type="text" id="projectNameInput" placeholder="Nombre del proyecto..." maxlength="40" />
+    <div class="save-modal-actions">
+      <button class="btn btn-outline btn-sm" onclick="closeSaveModal()">Cancelar</button>
+      <button class="btn btn-primary btn-sm" onclick="saveProject()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- STEPPER -->
+<div class="stepper">
+  <div class="step active" id="step1" onclick="goStep(1)">
+    <div><div class="step-num">1</div></div>
+    <div>Plano</div>
+  </div>
+  <div class="step" id="step2" onclick="goStep(2)">
+    <div><div class="step-num">2</div></div>
+    <div>Escala</div>
+  </div>
+  <div class="step" id="step3" onclick="goStep(3)">
+    <div><div class="step-num">3</div></div>
+    <div>Cables</div>
+  </div>
+</div>
+
+<main>
+
+  <!-- ══ SCREEN 1: SUBIR PLANO ══ -->
+  <div class="screen active" id="screen1">
+    <div class="upload-area">
+      <div class="upload-options">
+
+        <!-- Opción 1: Archivo / galería -->
+        <div class="upload-box" onclick="document.getElementById('fileInput').click()">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="3" y="3" width="18" height="18" rx="2"/>
+            <path d="M3 9h18M9 3v18"/>
+          </svg>
+          <p>Archivo</p>
+          <small>Galería o carpeta</small>
+          <input type="file" id="fileInput" accept="image/*" onchange="loadImage(event)" />
+        </div>
+
+        <!-- Opción 2: Cámara -->
+        <div class="upload-box" onclick="document.getElementById('cameraInput').click()">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+            <circle cx="12" cy="13" r="4"/>
+          </svg>
+          <p>Cámara</p>
+          <small>Hacer foto ahora</small>
+          <input type="file" id="cameraInput" accept="image/*" capture="environment" onchange="loadImage(event)" />
+        </div>
+
+      </div>
+
+      <!-- Preview de la imagen cargada -->
+      <div id="previewWrap" style="display:none;width:100%;max-width:360px;border-radius:var(--radius);overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.12);">
+        <img id="previewImg" style="width:100%;display:block;max-height:200px;object-fit:contain;background:#1e293b;" />
+        <div style="background:white;padding:8px 12px;font-size:0.82rem;color:var(--success);font-weight:600;">✔ Plano cargado</div>
+      </div>
+
+      <p style="color:var(--muted);font-size:0.82rem;text-align:center;max-width:280px;">
+        Puede ser una foto, captura de pantalla o imagen escaneada del plano de la instalación.
+      </p>
+      <button class="btn btn-primary" id="btnGoCalib" disabled onclick="goStep(2)">
+        Continuar →
+      </button>
+    </div>
+  </div>
+
+  <!-- ══ SCREEN 2: CALIBRAR ESCALA ══ -->
+  <div class="screen" id="screen2">
+    <div class="canvas-wrap" id="calibWrap">
+      <canvas id="calibCanvas"></canvas>
+    </div>
+    <div class="bottom-panel" style="padding:10px 14px;padding-bottom:max(12px, env(safe-area-inset-bottom));">
+      <div style="display:flex;align-items:center;margin-bottom:6px;">
+        <span class="panel-title" style="margin-bottom:0;font-size:0.68rem;">CALIBRAR ESCALA</span>
+        <button class="btn btn-outline btn-sm" style="margin-left:auto;padding:4px 10px;font-size:0.75rem;" onclick="resetCalib()">↺ Reiniciar</button>
+      </div>
+      <p class="calib-hint" id="calibHint" style="font-size:0.82rem;margin-bottom:8px;">
+        <strong>Paso 1:</strong> Toca el primer punto de una distancia conocida en el plano.
+      </p>
+      <div class="calib-points" style="margin-bottom:8px;">
+        <div class="point-badge" id="badge1">Punto A</div>
+        <div class="point-badge" id="badge2">Punto B</div>
+      </div>
+      <div class="input-row" id="realDistRow" style="display:none;margin-bottom:8px;">
+        <label>Distancia real:</label>
+        <input type="number" id="realDist" placeholder="ej. 5" min="0.1" step="0.1" />
+        <label>metros</label>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-primary btn-sm" id="btnLockA" style="display:none;flex:1;" onclick="lockPointA()">Punto A listo →</button>
+        <button class="btn btn-primary btn-sm" id="btnConfirmCalib" disabled style="flex:1;" onclick="confirmCalib()">✔ Confirmar escala</button>
+        <button class="btn btn-primary btn-sm" id="btnGoDrawing" style="display:none;flex:1;" onclick="goStep(3)">Continuar →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SCREEN 3: TRAZAR CABLES ══ -->
+  <div class="screen" id="screen3">
+
+    <!-- Tabs -->
+    <div class="tab-bar">
+      <button class="tab active" id="tab-cables" onclick="switchTab('cables')">✏️ Cables</button>
+      <button class="tab" id="tab-markers" onclick="switchTab('markers')">📍 Marcadores</button>
+    </div>
+
+    <!-- Toolbar cables: 2 filas -->
+    <div class="toolbar" id="toolbar-cables" style="flex-wrap:wrap;gap:6px 8px;padding:8px 10px;">
+      <!-- Fila 1: nombre + botón trazar -->
+      <div style="display:flex;gap:8px;width:100%;align-items:center;">
+        <input class="cable-name-input" id="cableNameInput" placeholder="Nombre cable..." maxlength="20" style="flex:1;min-width:0;" />
+        <button class="btn btn-sm" id="btnToggleDraw" style="background:#fef9c3;border:1.5px solid #facc15;color:#92400e;white-space:nowrap;flex-shrink:0;" onclick="toggleDrawing()">✏️ Trazar</button>
+      </div>
+      <!-- Fila 2: colores -->
+      <div style="display:flex;gap:8px;align-items:center;">
+        <div class="color-dot selected" style="background:#2563eb" data-color="#2563eb" onclick="selectColor(this)"></div>
+        <div class="color-dot" style="background:#dc2626" data-color="#dc2626" onclick="selectColor(this)"></div>
+        <div class="color-dot" style="background:#16a34a" data-color="#16a34a" onclick="selectColor(this)"></div>
+        <div class="color-dot" style="background:#d97706" data-color="#d97706" onclick="selectColor(this)"></div>
+        <div class="color-dot" style="background:#7c3aed" data-color="#7c3aed" onclick="selectColor(this)"></div>
+        <div class="color-dot" style="background:#db2777" data-color="#db2777" onclick="selectColor(this)"></div>
+      </div>
+    </div>
+
+    <!-- Toolbar marcadores: 2 filas -->
+    <div class="toolbar" id="toolbar-markers" style="display:none;flex-wrap:wrap;gap:6px;padding:8px 10px;">
+      <!-- Fila 1: iconos -->
+      <div style="display:flex;gap:6px;align-items:center;flex:1;min-width:0;">
+        <button class="marker-btn selected" data-mtype="data" onclick="selectMarkerType(this)">🔌<span>RJ45</span></button>
+        <button class="marker-btn" data-mtype="wifi"          onclick="selectMarkerType(this)">📶<span>WiFi</span></button>
+        <button class="marker-btn" data-mtype="rack"          onclick="selectMarkerType(this)">🗄️<span>Rack</span></button>
+        <button class="marker-btn" data-mtype="sw"            onclick="selectMarkerType(this)">🔀<span>Switch</span></button>
+        <button class="marker-btn" data-mtype="cam"           onclick="selectMarkerType(this)">📷<span>Cámara</span></button>
+        <button class="btn-del-marker" id="btnDelMarker" onclick="toggleDeleteMarker()" style="margin-left:auto;">🗑 Borrar</button>
+      </div>
+    </div>
+
+    <div class="canvas-wrap" id="drawWrap">
+      <canvas id="drawCanvas"></canvas>
+      <div class="fab-row">
+        <button class="fab fab-red" title="Deshacer último punto" onclick="undoLastPoint()">↩</button>
+        <button class="fab fab-green" title="Finalizar cable actual" onclick="finishCable()">✔</button>
+      </div>
+    </div>
+
+    <!-- Panel inferior plegable -->
+    <div id="bottomDrawer">
+      <!-- Tira siempre visible: total + botón plegar -->
+      <div id="drawerStrip" onclick="toggleBottomDrawer()">
+        <span style="font-size:0.8rem;color:var(--muted);">Total cable</span>
+        <span id="totalMeters" style="font-weight:700;color:var(--primary);font-size:1rem;">0.0 m</span>
+        <span id="drawerArrow" style="margin-left:auto;font-size:1rem;color:var(--muted);transition:transform .2s;">▲</span>
+      </div>
+      <!-- Contenido plegable -->
+      <div id="drawerContent">
+        <div class="scroll-panel">
+          <ul class="cable-list" id="cableList">
+            <li style="color:var(--muted);font-size:0.85rem;padding:10px 0;">Aún no hay cables trazados.</li>
+          </ul>
+        </div>
+        <div class="global-coca-row" style="margin-top:6px;">
+          <label>⬇ Bajada global:</label>
+          <input class="global-coca-input" type="number" id="globalDropInput" min="0" step="0.5" value="0" placeholder="m" />
+          <span style="color:var(--muted);font-size:0.8rem;">m</span>
+          <button class="btn-apply-coca" onclick="applyGlobalDrop()">A todos</button>
+        </div>
+        <div class="global-coca-row">
+          <label>🔄 Coca global:</label>
+          <input class="global-coca-input" type="number" id="globalCocaInput" min="0" step="0.5" value="0" placeholder="m" />
+          <span style="color:var(--muted);font-size:0.8rem;">m</span>
+          <button class="btn-apply-coca" onclick="applyGlobalCoca()">A todos</button>
+        </div>
+        <div class="margin-row">
+          <span>Margen:</span>
+          <input type="range" id="marginSlider" min="0" max="30" value="10" oninput="updateMargin()" />
+          <span class="margin-badge" id="marginLabel">+10%</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<!-- BANNER ACTUALIZACIÓN -->
+<div id="updateBanner">
+  <span>🆕 <strong>Nueva versión disponible</strong> — recarga para actualizar</span>
+  <button class="btn-update-reload" onclick="location.reload()">Actualizar</button>
+  <button class="btn-update-dismiss" id="btnDismissUpdate" title="Ahora no">✕</button>
+</div>
+
+<!-- BANNER INSTALAR PWA -->
+<div id="installBanner">
+  <img src="icon-192.png" alt="MWire" />
+  <div class="install-text">
+    <strong>Instalar MWire</strong>
+    <span>Añadir a la pantalla de inicio para usar sin internet</span>
+  </div>
+  <div class="install-actions">
+    <button class="btn-install" id="btnInstall">Instalar</button>
+    <button class="btn-install-dismiss" id="btnDismissInstall" title="Cerrar">✕</button>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════
+//  ESTADO GLOBAL
+// ═══════════════════════════════════════════════
+let img = null;
+let imgW = 0, imgH = 0;
+let scale = null;          // metros por píxel de imagen (independiente del zoom)
+let calibPts = [];         // [{x,y}] en coords canvas
+let calibPhase = 'A';      // 'A' = colocando punto A, 'B' = colocando punto B, 'done' = confirmado
+let currentStep = 1;
+
+// Dibujo
+let cables = [];           // [{name, color, points, meters}]
+let currentPoints = [];    // puntos del cable en curso (coords canvas)
+let drawingActive = false;
+let selectedColor = '#2563eb';
+let margin = 0.10;
+
+// Marcadores
+let markers = [];          // [{id, type, x, y}] en coords de imagen
+let selectedMarkerType = 'data';
+let deleteMarkerMode = false;
+let activeTab = 'cables';
+
+const MARKER_TYPES = {
+  data: { emoji: '🔌', label: 'Toma RJ45', color: '#2563eb' },
+  wifi: { emoji: '📶', label: 'WiFi AP',   color: '#16a34a' },
+  rack: { emoji: '🗄️', label: 'Rack',      color: '#7c3aed' },
+  sw:   { emoji: '🔀', label: 'Switch',    color: '#d97706' },
+  cam:  { emoji: '📷', label: 'Cámara IP', color: '#dc2626' },
+};
+
+// Zoom/pan
+let offsetX = 0, offsetY = 0;
+let zoomLevel = 1;
+let lastPan = null;
+
+// ═══════════════════════════════════════════════
+//  UTILS
+// ═══════════════════════════════════════════════
+function toast(msg, dur = 2200) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), dur);
+}
+
+function goStep(n) {
+  if (n === 2 && !img) return;
+  if (n === 3 && !scale) { toast('Primero calibra la escala'); return; }
+  currentStep = n;
+  document.querySelectorAll('.screen').forEach((s, i) => {
+    s.classList.toggle('active', i + 1 === n);
+  });
+  document.querySelectorAll('.step').forEach((s, i) => {
+    s.classList.remove('active', 'done');
+    if (i + 1 < n) s.classList.add('done');
+    if (i + 1 === n) s.classList.add('active');
+  });
+  if (n === 2) { setTimeout(initCalibCanvas, 60); }
+  if (n === 3) { setTimeout(initDrawCanvas, 60); }
+}
+
+// ═══════════════════════════════════════════════
+//  STEP 1 – CARGAR IMAGEN
+// ═══════════════════════════════════════════════
+function loadImage(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    img = new Image();
+    img.onload = () => {
+      imgW = img.width;
+      imgH = img.height;
+      document.getElementById('btnGoCalib').disabled = false;
+      // Mostrar preview
+      const previewImg = document.getElementById('previewImg');
+      const previewWrap = document.getElementById('previewWrap');
+      previewImg.src = ev.target.result;
+      previewWrap.style.display = 'block';
+      toast('✔ Plano cargado correctamente');
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+// ═══════════════════════════════════════════════
+//  STEP 2 – CALIBRAR ESCALA
+// ═══════════════════════════════════════════════
+let calibCanvas, calibCtx;
+
+function initCalibCanvas() {
+  calibCanvas = document.getElementById('calibCanvas');
+  calibCtx = calibCanvas.getContext('2d');
+  const wrap = document.getElementById('calibWrap');
+  calibCanvas.width = wrap.clientWidth;
+  calibCanvas.height = wrap.clientHeight;
+
+  // fit image
+  const scaleToFit = Math.min(calibCanvas.width / imgW, calibCanvas.height / imgH);
+  zoomLevel = scaleToFit;
+  offsetX = (calibCanvas.width - imgW * zoomLevel) / 2;
+  offsetY = (calibCanvas.height - imgH * zoomLevel) / 2;
+
+  renderCalib();
+  calibCanvas.removeEventListener('pointerdown', onCalibTap);
+  calibCanvas.addEventListener('pointerdown', onCalibTap);
+}
+
+// Helpers de conversión de coordenadas
+function toImg(cx, cy)    { return { x: (cx - offsetX) / zoomLevel, y: (cy - offsetY) / zoomLevel }; }
+function toCvs(ix, iy)    { return { x: ix * zoomLevel + offsetX,   y: iy * zoomLevel + offsetY   }; }
+
+function renderCalib() {
+  if (!calibCtx) return;
+  calibCtx.clearRect(0, 0, calibCanvas.width, calibCanvas.height);
+  calibCtx.drawImage(img, offsetX, offsetY, imgW * zoomLevel, imgH * zoomLevel);
+
+  calibPts.forEach((p, i) => {
+    const c = toCvs(p.x, p.y);
+    calibCtx.beginPath();
+    calibCtx.arc(c.x, c.y, 10, 0, Math.PI * 2);
+    calibCtx.fillStyle = i === 0 ? '#2563eb' : '#dc2626';
+    calibCtx.fill();
+    calibCtx.strokeStyle = 'white';
+    calibCtx.lineWidth = 2;
+    calibCtx.stroke();
+    calibCtx.fillStyle = 'white';
+    calibCtx.font = 'bold 12px sans-serif';
+    calibCtx.textAlign = 'center';
+    calibCtx.textBaseline = 'middle';
+    calibCtx.fillText(i === 0 ? 'A' : 'B', c.x, c.y);
+  });
+
+  if (calibPts.length === 2) {
+    const c0 = toCvs(calibPts[0].x, calibPts[0].y);
+    const c1 = toCvs(calibPts[1].x, calibPts[1].y);
+    calibCtx.beginPath();
+    calibCtx.moveTo(c0.x, c0.y);
+    calibCtx.lineTo(c1.x, c1.y);
+    calibCtx.strokeStyle = '#facc15';
+    calibCtx.lineWidth = 2;
+    calibCtx.setLineDash([6, 4]);
+    calibCtx.stroke();
+    calibCtx.setLineDash([]);
+  }
+}
+
+function onCalibTap(e) {
+  if (calibPhase === 'done') return;
+  const rect = calibCanvas.getBoundingClientRect();
+  const cx = e.clientX - rect.left;
+  const cy = e.clientY - rect.top;
+  const { x, y } = toImg(cx, cy); // guardar en espacio de imagen
+
+  if (calibPhase === 'A') {
+    // Punto A: sobreescribir mientras no se confirme
+    calibPts[0] = { x, y };
+    document.getElementById('badge1').textContent = 'Punto A ●';
+    document.getElementById('badge1').classList.add('set');
+    document.getElementById('calibHint').innerHTML =
+      '<strong>Punto A:</strong> Muévelo hasta que esté bien colocado, luego pulsa <em>Punto A listo</em>.';
+    document.getElementById('btnLockA').style.display = '';
+  } else if (calibPhase === 'B') {
+    // Punto B: sobreescribir mientras no se confirme
+    calibPts[1] = { x, y }; // ya en espacio de imagen
+    document.getElementById('badge2').textContent = 'Punto B ●';
+    document.getElementById('badge2').classList.add('set');
+    document.getElementById('calibHint').innerHTML =
+      '<strong>Punto B:</strong> Ajústalo hasta que esté bien. Luego introduce la distancia real y confirma.';
+    document.getElementById('realDistRow').style.display = '';
+    document.getElementById('btnConfirmCalib').disabled = false;
+  }
+  renderCalib();
+}
+
+function lockPointA() {
+  if (!calibPts[0]) return;
+  calibPhase = 'B';
+  document.getElementById('badge1').textContent = 'Punto A ✔';
+  document.getElementById('btnLockA').style.display = 'none';
+  document.getElementById('calibHint').innerHTML =
+    '<strong>Paso 2:</strong> Ahora toca el Punto B. Puedes ajustarlo hasta que esté en su sitio.';
+  toast('Punto A fijado. Ahora toca el Punto B.');
+}
+
+function resetCalib() {
+  calibPts = [];
+  calibPhase = 'A';
+  scale = null;
+  document.getElementById('badge1').textContent = 'Punto A';
+  document.getElementById('badge2').textContent = 'Punto B';
+  document.getElementById('badge1').classList.remove('set');
+  document.getElementById('badge2').classList.remove('set');
+  document.getElementById('calibHint').innerHTML =
+    '<strong>Paso 1:</strong> Toca el primer punto de una distancia conocida en el plano.';
+  document.getElementById('btnLockA').style.display = 'none';
+  document.getElementById('btnConfirmCalib').disabled = true;
+  document.getElementById('btnConfirmCalib').style.display = '';
+  document.getElementById('btnGoDrawing').style.display = 'none';
+  document.getElementById('realDistRow').style.display = 'none';
+  document.getElementById('realDist').value = '';
+  renderCalib();
+}
+
+function confirmCalib() {
+  const dist = parseFloat(document.getElementById('realDist').value);
+  if (!dist || dist <= 0) { toast('Introduce una distancia válida en metros'); return; }
+  if (!calibPts[0] || !calibPts[1]) { toast('Marca los dos puntos primero'); return; }
+
+  const dx = calibPts[1].x - calibPts[0].x;
+  const dy = calibPts[1].y - calibPts[0].y;
+  const pixelDist = Math.sqrt(dx * dx + dy * dy);
+  scale = dist / pixelDist;
+  calibPhase = 'done';
+
+  document.getElementById('badge2').textContent = 'Punto B ✔';
+  toast(`✔ Escala configurada: 1 px = ${(scale * 100).toFixed(3)} cm`);
+  document.getElementById('btnConfirmCalib').style.display = 'none';
+  document.getElementById('btnGoDrawing').style.display = '';
+  document.getElementById('step2').classList.add('done');
+}
+
+// ═══════════════════════════════════════════════
+//  STEP 3 – TRAZAR CABLES
+// ═══════════════════════════════════════════════
+let drawCanvas, drawCtx;
+
+function initDrawCanvas() {
+  drawCanvas = document.getElementById('drawCanvas');
+  drawCtx = drawCanvas.getContext('2d');
+  const wrap = document.getElementById('drawWrap');
+  drawCanvas.width = wrap.clientWidth;
+  drawCanvas.height = wrap.clientHeight;
+
+  const scaleToFit = Math.min(drawCanvas.width / imgW, drawCanvas.height / imgH);
+  zoomLevel = scaleToFit;
+  offsetX = (drawCanvas.width - imgW * zoomLevel) / 2;
+  offsetY = (drawCanvas.height - imgH * zoomLevel) / 2;
+
+  renderDraw();
+
+  drawCanvas.removeEventListener('pointerdown', onDrawPointerDown);
+  drawCanvas.removeEventListener('pointermove', onDrawPointerMove);
+  drawCanvas.removeEventListener('pointerup', onDrawPointerUp);
+  drawCanvas.addEventListener('pointerdown', onDrawPointerDown);
+  drawCanvas.addEventListener('pointermove', onDrawPointerMove);
+  drawCanvas.addEventListener('pointerup', onDrawPointerUp);
+}
+
+function renderDraw() {
+  if (!drawCtx) return;
+  drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+  drawCtx.drawImage(img, offsetX, offsetY, imgW * zoomLevel, imgH * zoomLevel);
+
+  // Cables guardados (puntos en espacio imagen → convertir a canvas)
+  cables.forEach(cable => {
+    if (cable.points.length < 2) return;
+    const c0 = toCvs(cable.points[0].x, cable.points[0].y);
+    drawCtx.beginPath();
+    drawCtx.moveTo(c0.x, c0.y);
+    cable.points.forEach(p => { const c = toCvs(p.x, p.y); drawCtx.lineTo(c.x, c.y); });
+    drawCtx.strokeStyle = cable.color;
+    drawCtx.lineWidth = 3;
+    drawCtx.lineJoin = 'round';
+    drawCtx.lineCap = 'round';
+    drawCtx.stroke();
+    // etiqueta
+    drawCtx.fillStyle = cable.color;
+    drawCtx.font = 'bold 11px sans-serif';
+    drawCtx.fillText(cable.name, c0.x + 6, c0.y - 6);
+  });
+
+  // Cable en curso (puntos en espacio imagen → convertir a canvas)
+  if (currentPoints.length > 0) {
+    const c0 = toCvs(currentPoints[0].x, currentPoints[0].y);
+    drawCtx.beginPath();
+    drawCtx.moveTo(c0.x, c0.y);
+    currentPoints.forEach(p => { const c = toCvs(p.x, p.y); drawCtx.lineTo(c.x, c.y); });
+    drawCtx.strokeStyle = selectedColor;
+    drawCtx.lineWidth = 3;
+    drawCtx.setLineDash([8, 4]);
+    drawCtx.lineJoin = 'round';
+    drawCtx.lineCap = 'round';
+    drawCtx.stroke();
+    drawCtx.setLineDash([]);
+
+    // puntos
+    currentPoints.forEach((p, i) => {
+      const c = toCvs(p.x, p.y);
+      drawCtx.beginPath();
+      drawCtx.arc(c.x, c.y, 5, 0, Math.PI * 2);
+      drawCtx.fillStyle = i === 0 ? 'white' : selectedColor;
+      drawCtx.strokeStyle = selectedColor;
+      drawCtx.lineWidth = 2;
+      drawCtx.fill();
+      drawCtx.stroke();
+    });
+  }
+
+  // Marcadores
+  markers.forEach(m => {
+    const c = toCvs(m.x, m.y);
+    drawMarkerOnCanvas(drawCtx, m.type, c.x, c.y);
+  });
+}
+
+function drawMarkerOnCanvas(ctx, type, cx, cy) {
+  const mt = MARKER_TYPES[type];
+  const r = 16;
+  // Sombra
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.25)';
+  ctx.shadowBlur = 4;
+  ctx.shadowOffsetY = 2;
+  // Círculo fondo
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fillStyle = 'white';
+  ctx.fill();
+  ctx.strokeStyle = mt.color;
+  ctx.lineWidth = 2.5;
+  ctx.stroke();
+  ctx.restore();
+  // Emoji
+  ctx.font = '16px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(mt.emoji, cx, cy);
+
+  // Modo borrar: cruz roja encima
+  if (deleteMarkerMode) {
+    ctx.beginPath();
+    ctx.arc(cx + r * 0.65, cy - r * 0.65, 7, 0, Math.PI * 2);
+    ctx.fillStyle = '#dc2626';
+    ctx.fill();
+    ctx.fillStyle = 'white';
+    ctx.font = 'bold 10px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('✕', cx + r * 0.65, cy - r * 0.65);
+  }
+}
+
+let pointerMoved = false;
+let pointerDownTime = 0;
+
+function onDrawPointerDown(e) {
+  pointerMoved = false;
+  pointerDownTime = Date.now();
+  lastPan = { x: e.clientX, y: e.clientY };
+}
+
+function onDrawPointerMove(e) {
+  if (!lastPan) return;
+  const dx = e.clientX - lastPan.x;
+  const dy = e.clientY - lastPan.y;
+  if (Math.abs(dx) > 4 || Math.abs(dy) > 4) {
+    pointerMoved = true;
+    // Paneo siempre disponible — arrastrar mueve el plano, tocar añade punto
+    offsetX += dx;
+    offsetY += dy;
+    lastPan = { x: e.clientX, y: e.clientY };
+    renderDraw();
+  }
+}
+
+function onDrawPointerUp(e) {
+  if (!pointerMoved) {
+    const rect = drawCanvas.getBoundingClientRect();
+    const cx = e.clientX - rect.left;
+    const cy = e.clientY - rect.top;
+    const imgPt = toImg(cx, cy);
+
+    if (activeTab === 'cables' && drawingActive) {
+      currentPoints.push(imgPt);
+      renderDraw();
+    } else if (activeTab === 'markers') {
+      if (deleteMarkerMode) {
+        // Borrar marcador cercano
+        const HIT = 20 / zoomLevel; // radio de toque en coords imagen
+        const idx = markers.findIndex(m => Math.hypot(m.x - imgPt.x, m.y - imgPt.y) < HIT);
+        if (idx !== -1) { markers.splice(idx, 1); renderDraw(); }
+      } else {
+        // Colocar marcador
+        markers.push({ id: Date.now(), type: selectedMarkerType, x: imgPt.x, y: imgPt.y });
+        renderDraw();
+      }
+    }
+  }
+  lastPan = null;
+}
+
+function toggleDrawing() {
+  drawingActive = !drawingActive;
+  const btn = document.getElementById('btnToggleDraw');
+  if (drawingActive) {
+    btn.textContent = '⏹ Detener';
+    btn.style.background = '#fef08a';
+    toast('Toca el plano para añadir puntos al cable');
+  } else {
+    btn.textContent = '✏️ Trazar';
+    btn.style.background = '#fef9c3';
+  }
+}
+
+function undoLastPoint() {
+  if (currentPoints.length > 0) {
+    currentPoints.pop();
+    renderDraw();
+  }
+}
+
+function finishCable() {
+  if (currentPoints.length < 2) { toast('Necesitas al menos 2 puntos'); return; }
+
+  let meters = 0;
+  for (let i = 1; i < currentPoints.length; i++) {
+    const dx = currentPoints[i].x - currentPoints[i - 1].x;
+    const dy = currentPoints[i].y - currentPoints[i - 1].y;
+    meters += Math.sqrt(dx * dx + dy * dy) * scale;
+  }
+
+  const nameInput = document.getElementById('cableNameInput');
+  const name = nameInput.value.trim() || `Cable ${cables.length + 1}`;
+
+  cables.push({ name, color: selectedColor, points: [...currentPoints], meters, extraDrop: 0, extraSlack: 0 });
+  currentPoints = [];
+  drawingActive = false;
+  document.getElementById('btnToggleDraw').textContent = '✏️ Trazar';
+  document.getElementById('btnToggleDraw').style.background = '#fef9c3';
+  nameInput.value = '';
+
+  updateCableList();
+  renderDraw();
+  toast(`✔ "${name}" añadido: ${meters.toFixed(2)} m`);
+}
+
+function deleteCable(idx) {
+  cables.splice(idx, 1);
+  updateCableList();
+  renderDraw();
+}
+
+function cableTotal(c) {
+  return (c.meters || 0) + (c.extraDrop || 0) + (c.extraSlack || 0);
+}
+
+function updateCableList() {
+  const list = document.getElementById('cableList');
+  if (cables.length === 0) {
+    list.innerHTML = '<li style="color:var(--muted);font-size:0.85rem;padding:10px 0;">Aún no hay cables trazados.</li>';
+    document.getElementById('totalMeters').textContent = '0.0 m';
+    return;
+  }
+
+  list.innerHTML = cables.map((c, i) => {
+    const total = cableTotal(c);
+    const hasExtras = c.extraDrop > 0 || c.extraSlack > 0;
+    const breakdown = hasExtras
+      ? `<div class="extra-breakdown">${c.meters.toFixed(2)} m medido + ${(c.extraDrop||0).toFixed(1)} bajada + ${(c.extraSlack||0).toFixed(1)} coca = ${total.toFixed(2)} m</div>`
+      : '';
+    return `
+    <li class="cable-item" id="cable-item-${i}">
+      <div class="cable-row">
+        <span class="cable-color" style="background:${c.color}"></span>
+        <span class="cable-name">${c.name}</span>
+        <span class="cable-meters">${total.toFixed(2)} m</span>
+        <button class="cable-expand${hasExtras ? ' open' : ''}" id="expand-btn-${i}" onclick="toggleExtras(${i})" title="Metros extra">▾</button>
+        <button class="cable-del" onclick="deleteCable(${i})">✕</button>
+      </div>
+      <div class="cable-extras${hasExtras ? ' open' : ''}" id="extras-${i}">
+        <div class="extra-row">
+          <label>⬇ Bajada toma (m)</label>
+          <input class="extra-input" type="number" min="0" step="0.5" value="${(c.extraDrop||0)}"
+            onchange="updateCableExtras(${i}, 'extraDrop', this.value)"
+            oninput="updateCableExtras(${i}, 'extraDrop', this.value)" />
+        </div>
+        <div class="extra-row">
+          <label>🔄 Coca rack (m)</label>
+          <input class="extra-input" type="number" min="0" step="0.5" value="${(c.extraSlack||0)}"
+            onchange="updateCableExtras(${i}, 'extraSlack', this.value)"
+            oninput="updateCableExtras(${i}, 'extraSlack', this.value)" />
+        </div>
+        ${breakdown}
+      </div>
+    </li>`;
+  }).join('');
+
+  updateMargin();
+}
+
+function toggleExtras(i) {
+  const extras = document.getElementById(`extras-${i}`);
+  const btn = document.getElementById(`expand-btn-${i}`);
+  const isOpen = extras.classList.toggle('open');
+  btn.classList.toggle('open', isOpen);
+}
+
+function updateCableExtras(i, field, value) {
+  cables[i][field] = Math.max(0, parseFloat(value) || 0);
+  // Actualizar solo el total mostrado y el desglose sin rerenderizar toda la lista
+  const total = cableTotal(cables[i]);
+  const row = document.querySelector(`#cable-item-${i} .cable-meters`);
+  if (row) row.textContent = total.toFixed(2) + ' m';
+  const c = cables[i];
+  const hasExtras = c.extraDrop > 0 || c.extraSlack > 0;
+  const bdEl = document.querySelector(`#extras-${i} .extra-breakdown`);
+  const bdText = hasExtras
+    ? `${c.meters.toFixed(2)} m medido + ${(c.extraDrop||0).toFixed(1)} bajada + ${(c.extraSlack||0).toFixed(1)} coca = ${total.toFixed(2)} m`
+    : '';
+  if (bdEl) { bdEl.textContent = bdText; }
+  else if (hasExtras) {
+    const div = document.createElement('div');
+    div.className = 'extra-breakdown';
+    div.textContent = bdText;
+    document.getElementById(`extras-${i}`).appendChild(div);
+  }
+  updateMargin();
+}
+
+function toggleBottomDrawer() {
+  const content = document.getElementById('drawerContent');
+  const arrow   = document.getElementById('drawerArrow');
+  const strip   = document.getElementById('drawerStrip');
+  const open = content.classList.toggle('open');
+  arrow.style.transform = open ? 'rotate(180deg)' : '';
+  strip.classList.toggle('expanded', open);
+}
+
+function applyGlobalDrop() {
+  const val = Math.max(0, parseFloat(document.getElementById('globalDropInput').value) || 0);
+  if (cables.length === 0) { toast('No hay cables a los que aplicar'); return; }
+  cables.forEach(c => { c.extraDrop = val; });
+  updateCableList();
+  toast(`⬇ Bajada de ${val.toFixed(1)} m aplicada a ${cables.length} cable${cables.length !== 1 ? 's' : ''}`);
+}
+
+function applyGlobalCoca() {
+  const val = Math.max(0, parseFloat(document.getElementById('globalCocaInput').value) || 0);
+  if (cables.length === 0) { toast('No hay cables a los que aplicar'); return; }
+  cables.forEach(c => { c.extraSlack = val; });
+  updateCableList();
+  toast(`🔄 Coca de ${val.toFixed(1)} m aplicada a ${cables.length} cable${cables.length !== 1 ? 's' : ''}`);
+}
+
+function updateMargin() {
+  margin = parseInt(document.getElementById('marginSlider').value) / 100;
+  document.getElementById('marginLabel').textContent = `+${Math.round(margin * 100)}%`;
+
+  const base = cables.reduce((s, c) => s + cableTotal(c), 0);
+  const total = base * (1 + margin);
+  document.getElementById('totalMeters').textContent = `${total.toFixed(2)} m`;
+}
+
+// ── TABS ──
+function switchTab(tab) {
+  activeTab = tab;
+  document.getElementById('tab-cables').classList.toggle('active', tab === 'cables');
+  document.getElementById('tab-markers').classList.toggle('active', tab === 'markers');
+  document.getElementById('toolbar-cables').style.display = tab === 'cables' ? '' : 'none';
+  document.getElementById('toolbar-markers').style.display = tab === 'markers' ? '' : 'none';
+  // Desactivar trazado si cambia de tab
+  if (tab === 'markers' && drawingActive) {
+    drawingActive = false;
+    document.getElementById('btnToggleDraw').textContent = '✏️ Trazar';
+    document.getElementById('btnToggleDraw').style.background = '#fef9c3';
+  }
+}
+
+// ── MARCADORES ──
+function selectMarkerType(el) {
+  document.querySelectorAll('.marker-btn').forEach(b => b.classList.remove('selected'));
+  el.classList.add('selected');
+  selectedMarkerType = el.dataset.mtype;
+  // Salir de modo borrar al seleccionar un tipo
+  if (deleteMarkerMode) toggleDeleteMarker();
+}
+
+function toggleDeleteMarker() {
+  deleteMarkerMode = !deleteMarkerMode;
+  const btn = document.getElementById('btnDelMarker');
+  btn.classList.toggle('active', deleteMarkerMode);
+  btn.textContent = deleteMarkerMode ? '✕ Tocando...' : '🗑 Borrar';
+  // Desseleccionar tipo al entrar en modo borrar
+  if (deleteMarkerMode) {
+    document.querySelectorAll('.marker-btn').forEach(b => b.classList.remove('selected'));
+  } else {
+    // Volver a seleccionar el tipo actual
+    const btn = document.querySelector(`.marker-btn[data-mtype="${selectedMarkerType}"]`);
+    if (btn) btn.classList.add('selected');
+  }
+  renderDraw();
+  if (deleteMarkerMode) toast('Toca un marcador para borrarlo');
+}
+
+function selectColor(el) {
+  document.querySelectorAll('.color-dot').forEach(d => d.classList.remove('selected'));
+  el.classList.add('selected');
+  selectedColor = el.dataset.color;
+}
+
+// ═══════════════════════════════════════════════
+//  ZOOM (pinch) + doble tap para resetear
+// ═══════════════════════════════════════════════
+let lastDist = null;
+let lastTapTime = 0;
+
+function getCanvas() {
+  return currentStep === 2 ? calibCanvas : drawCanvas;
+}
+
+function resetZoom() {
+  const canvas = getCanvas();
+  if (!canvas || !img) return;
+  const scaleToFit = Math.min(canvas.width / imgW, canvas.height / imgH);
+  zoomLevel = scaleToFit;
+  offsetX = (canvas.width - imgW * zoomLevel) / 2;
+  offsetY = (canvas.height - imgH * zoomLevel) / 2;
+  if (currentStep === 2) renderCalib();
+  else renderDraw();
+  toast('Vista restablecida');
+}
+
+// Bloquear pull-to-refresh por JS (segundo nivel de protección)
+document.addEventListener('touchmove', e => {
+  if (e.touches.length === 1 && document.scrollingElement?.scrollTop === 0) {
+    e.preventDefault();
+  }
+}, { passive: false });
+
+// Avisar si intentan recargar/salir con trabajo sin guardar
+window.addEventListener('beforeunload', e => {
+  if (img && (cables.length > 0 || calibPts.length > 0)) {
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
+
+document.addEventListener('touchstart', e => {
+  if (e.touches.length === 1 && (currentStep === 2 || currentStep === 3)) {
+    const now = Date.now();
+    if (now - lastTapTime < 300) resetZoom();
+    lastTapTime = now;
+  }
+}, { passive: true });
+
+document.addEventListener('touchmove', e => {
+  if (e.touches.length === 2 && (currentStep === 2 || currentStep === 3)) {
+    e.preventDefault();
+    const canvas = getCanvas();
+    const rect = canvas.getBoundingClientRect();
+
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+
+    if (lastDist) {
+      const factor = dist / lastDist;
+      const newZoom = Math.max(0.3, Math.min(5, zoomLevel * factor));
+
+      // Punto medio del pellizco en coords canvas
+      const midX = ((e.touches[0].clientX + e.touches[1].clientX) / 2) - rect.left;
+      const midY = ((e.touches[0].clientY + e.touches[1].clientY) / 2) - rect.top;
+
+      // Ajustar offset para que el zoom sea centrado en el pellizco
+      offsetX = midX - (midX - offsetX) * (newZoom / zoomLevel);
+      offsetY = midY - (midY - offsetY) * (newZoom / zoomLevel);
+      zoomLevel = newZoom;
+
+      if (currentStep === 2) renderCalib();
+      else renderDraw();
+    }
+    lastDist = dist;
+  }
+}, { passive: false });
+
+document.addEventListener('touchend', () => { lastDist = null; });
+
+
+// ═══════════════════════════════════════════════
+//  DRAWER
+// ═══════════════════════════════════════════════
+function openDrawer() {
+  document.getElementById('drawer').classList.add('open');
+  document.getElementById('drawerOverlay').classList.add('open');
+  renderProjectList();
+}
+function closeDrawer() {
+  document.getElementById('drawer').classList.remove('open');
+  document.getElementById('drawerOverlay').classList.remove('open');
+}
+
+// ═══════════════════════════════════════════════
+//  MODAL GUARDAR
+// ═══════════════════════════════════════════════
+function openSaveModal() {
+  if (!img) { toast('No hay ningún proyecto abierto'); return; }
+  closeDrawer();
+  const input = document.getElementById('projectNameInput');
+  input.value = '';
+  document.getElementById('saveModal').classList.add('open');
+  setTimeout(() => input.focus(), 200);
+}
+function closeSaveModal() {
+  document.getElementById('saveModal').classList.remove('open');
+}
+document.getElementById('projectNameInput')?.addEventListener('keydown', e => {
+  if (e.key === 'Enter') saveProject();
+});
+
+// ═══════════════════════════════════════════════
+//  GESTIÓN DE PROYECTOS (localStorage)
+// ═══════════════════════════════════════════════
+const STORAGE_KEY = 'mwire_projects';
+
+function getProjects() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
+  catch { return []; }
+}
+function setProjects(list) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+}
+
+function saveProject() {
+  if (!img) { toast('No hay ningún proyecto abierto'); closeSaveModal(); return; }
+  const nameInput = document.getElementById('projectNameInput');
+  const name = nameInput.value.trim() || `Proyecto ${new Date().toLocaleDateString('es-ES')}`;
+
+  // Generar miniatura de la imagen (pequeña para no saturar localStorage)
+  const thumb = generateThumb(img, 120, 90);
+
+  const project = {
+    id: Date.now(),
+    name,
+    date: new Date().toLocaleDateString('es-ES', { day:'2-digit', month:'short', year:'numeric' }),
+    thumb,
+    imageData: img.src,
+    imgW, imgH,
+    calibPts: [...calibPts],
+    calibPhase,
+    scale,
+    cables: cables.map(c => ({ ...c, points: [...c.points] })),
+    markers: [...markers],
+    margin: parseInt(document.getElementById('marginSlider').value)
+  };
+
+  const list = getProjects();
+  list.unshift(project); // más reciente primero
+  try {
+    setProjects(list);
+    closeSaveModal();
+    toast(`✔ "${name}" guardado`);
+  } catch(e) {
+    // Si localStorage está lleno, avisar
+    toast('Sin espacio — borra proyectos antiguos');
+  }
+}
+
+function generateThumb(imgEl, w, h) {
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const ctx = c.getContext('2d');
+  // Mantener proporción con letterbox
+  const ratio = Math.min(w / imgEl.width, h / imgEl.height);
+  const dw = imgEl.width * ratio;
+  const dh = imgEl.height * ratio;
+  ctx.fillStyle = '#1e293b';
+  ctx.fillRect(0, 0, w, h);
+  ctx.drawImage(imgEl, (w - dw) / 2, (h - dh) / 2, dw, dh);
+  return c.toDataURL('image/jpeg', 0.6);
+}
+
+function loadProject(id) {
+  const list = getProjects();
+  const p = list.find(x => x.id === id);
+  if (!p) return;
+
+  // Restaurar imagen
+  img = new Image();
+  img.onload = () => {
+    imgW = p.imgW;
+    imgH = p.imgH;
+    calibPts = p.calibPts || [];
+    calibPhase = p.calibPhase || 'done';
+    scale = p.scale;
+    cables  = p.cables  || [];
+    markers = p.markers || [];
+
+    // Habilitar paso 1
+    document.getElementById('btnGoCalib').disabled = false;
+    const previewImg = document.getElementById('previewImg');
+    const previewWrap = document.getElementById('previewWrap');
+    previewImg.src = img.src;
+    previewWrap.style.display = 'block';
+
+    // Restaurar margen
+    if (p.margin !== undefined) {
+      document.getElementById('marginSlider').value = p.margin;
+      margin = p.margin / 100;
+    }
+
+    closeDrawer();
+
+    // Ir directamente al paso 3 si tiene escala
+    if (scale) {
+      goStep(3);
+      updateCableList();
+      toast(`✔ "${p.name}" cargado`);
+    } else {
+      goStep(1);
+      toast(`Proyecto cargado — calibra la escala`);
+    }
+  };
+  img.src = p.imageData;
+}
+
+function deleteProject(id, e) {
+  e.stopPropagation();
+  const list = getProjects().filter(x => x.id !== id);
+  setProjects(list);
+  renderProjectList();
+  toast('Proyecto eliminado');
+}
+
+function newProject() {
+  if (img && (cables.length > 0 || calibPts.length > 0)) {
+    // Mostrar confirmación en el propio drawer (no usar confirm() — bloqueado en local)
+    showDrawerConfirm(
+      '¿Empezar un proyecto nuevo?',
+      'Perderás los cambios no guardados.',
+      doNewProject
+    );
+  } else {
+    doNewProject();
+  }
+}
+
+function doNewProject() {
+  img = null; imgW = 0; imgH = 0;
+  scale = null; calibPts = []; calibPhase = 'A';
+  cables = []; currentPoints = []; markers = []; drawingActive = false; deleteMarkerMode = false;
+  calibCanvas = null; calibCtx = null;
+  drawCanvas = null; drawCtx = null;
+  document.getElementById('btnGoCalib').disabled = true;
+  document.getElementById('previewWrap').style.display = 'none';
+  document.getElementById('previewImg').src = '';
+  document.getElementById('fileInput').value = '';
+  document.getElementById('cameraInput').value = '';
+  // Resetear UI de calibración sin intentar renderizar canvas
+  document.getElementById('badge1').textContent = 'Punto A';
+  document.getElementById('badge2').textContent = 'Punto B';
+  document.getElementById('badge1').classList.remove('set');
+  document.getElementById('badge2').classList.remove('set');
+  document.getElementById('calibHint').innerHTML =
+    '<strong>Paso 1:</strong> Toca el primer punto de una distancia conocida en el plano.';
+  document.getElementById('btnLockA').style.display = 'none';
+  document.getElementById('btnConfirmCalib').disabled = true;
+  document.getElementById('btnConfirmCalib').style.display = '';
+  document.getElementById('btnGoDrawing').style.display = 'none';
+  document.getElementById('realDistRow').style.display = 'none';
+  document.getElementById('realDist').value = '';
+  // Resetear stepper
+  document.querySelectorAll('.step').forEach(s => s.classList.remove('done', 'active'));
+  document.getElementById('step1').classList.add('active');
+  updateCableList();
+  closeDrawer();
+  // Forzar pantalla 1 directamente sin goStep (que tiene validaciones)
+  document.querySelectorAll('.screen').forEach((s, i) => s.classList.toggle('active', i === 0));
+  currentStep = 1;
+  toast('Nuevo proyecto');
+}
+
+// Confirmación inline dentro del drawer (evita confirm() bloqueado en local)
+function showDrawerConfirm(title, subtitle, onConfirm) {
+  const existing = document.getElementById('drawerConfirm');
+  if (existing) existing.remove();
+
+  const box = document.createElement('div');
+  box.id = 'drawerConfirm';
+  box.style.cssText = 'background:#fff7ed;border:1.5px solid #fb923c;border-radius:10px;padding:14px;margin:12px 16px;';
+  box.innerHTML = `
+    <p style="font-weight:600;font-size:0.9rem;margin-bottom:4px;">${title}</p>
+    <p style="font-size:0.8rem;color:var(--muted);margin-bottom:12px;">${subtitle}</p>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-outline btn-sm" style="flex:1" onclick="document.getElementById('drawerConfirm').remove()">Cancelar</button>
+      <button class="btn btn-danger btn-sm" style="flex:1" onclick="document.getElementById('drawerConfirm').remove();(${onConfirm.name})()">Continuar</button>
+    </div>`;
+
+  // Insertar después de la sección de proyecto actual
+  const section = document.querySelector('.drawer-section');
+  section.after(box);
+}
+
+function renderProjectList() {
+  const list = getProjects();
+  const container = document.getElementById('projectList');
+  if (list.length === 0) {
+    container.innerHTML = `
+      <div class="project-empty">
+        Aún no tienes proyectos guardados.<br>
+        Pulsa <strong>Guardar proyecto</strong> para conservar tu trabajo.
+      </div>`;
+    return;
+  }
+  container.innerHTML = list.map(p => `
+    <div class="project-card" onclick="loadProject(${p.id})">
+      <img class="project-thumb" src="${p.thumb}" alt="" />
+      <div class="project-info">
+        <div class="project-name">${p.name}</div>
+        <div class="project-meta">
+          ${p.date} · ${p.cables?.length || 0} cable${p.cables?.length !== 1 ? 's' : ''}
+          ${p.scale ? ' · ' + totalMetersForProject(p) : ''}
+        </div>
+      </div>
+      <button class="project-del" onclick="deleteProject(${p.id}, event)" title="Eliminar">🗑</button>
+    </div>
+  `).join('');
+}
+
+function totalMetersForProject(p) {
+  if (!p.cables || !p.scale) return '';
+  const base = p.cables.reduce((s, c) => s + (c.meters || 0) + (c.extraDrop || 0) + (c.extraSlack || 0), 0);
+  const m = parseInt(p.margin || 10) / 100;
+  return (base * (1 + m)).toFixed(1) + ' m';
+}
+
+// ═══════════════════════════════════════════════
+//  PWA — Service Worker + Banner de instalación
+// ═══════════════════════════════════════════════
+
+// ── Registrar el service worker y gestionar actualizaciones ──
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js')
+      .catch(err => console.warn('SW no registrado:', err));
+  });
+
+  // El SW nos avisa cuando una nueva versión se ha activado
+  navigator.serviceWorker.addEventListener('message', event => {
+    if (event.data?.type === 'SW_UPDATED') {
+      document.getElementById('updateBanner').classList.add('show');
+    }
+  });
+
+  document.getElementById('btnDismissUpdate').addEventListener('click', () => {
+    document.getElementById('updateBanner').classList.remove('show');
+  });
+}
+
+// Banner de instalación (evento beforeinstallprompt — Chrome/Android)
+let deferredInstallPrompt = null;
+
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  // Mostrar el banner solo si el usuario no lo ha descartado antes
+  if (!localStorage.getItem('mwire_install_dismissed')) {
+    document.getElementById('installBanner').classList.add('show');
+  }
+});
+
+document.getElementById('btnInstall').addEventListener('click', async () => {
+  if (!deferredInstallPrompt) return;
+  document.getElementById('installBanner').classList.remove('show');
+  deferredInstallPrompt.prompt();
+  const { outcome } = await deferredInstallPrompt.userChoice;
+  if (outcome === 'accepted') toast('✔ MWire instalada en tu pantalla de inicio');
+  deferredInstallPrompt = null;
+});
+
+document.getElementById('btnDismissInstall').addEventListener('click', () => {
+  document.getElementById('installBanner').classList.remove('show');
+  localStorage.setItem('mwire_install_dismissed', '1');
+});
+
+// Cuando ya está instalada, ocultar el banner
+window.addEventListener('appinstalled', () => {
+  document.getElementById('installBanner').classList.remove('show');
+  deferredInstallPrompt = null;
+});
+</script>
+</body>
+</html>
