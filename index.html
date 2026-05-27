@@ -314,6 +314,15 @@
       -webkit-tap-highlight-color: transparent;
     }
     .marker-btn span { font-size: 0.6rem; color: var(--muted); font-weight: 600; }
+    .mtype-badge {
+      color: white;
+      font-size: 0.65rem;
+      font-weight: 700;
+      padding: 2px 5px;
+      border-radius: 4px;
+      letter-spacing: 0.3px;
+      line-height: 1.4;
+    }
     .marker-btn.selected { border-color: var(--primary); background: #eff6ff; }
     .marker-btn.selected span { color: var(--primary); }
 
@@ -1018,13 +1027,13 @@
         <input class="cable-name-input" id="markerNameInput" placeholder="Nombre marcador..." maxlength="20" style="flex:1;min-width:0;" />
         <button class="btn-del-marker" id="btnDelMarker" onclick="toggleDeleteMarker()" style="flex-shrink:0;">🗑 Borrar</button>
       </div>
-      <!-- Fila 2: iconos -->
-      <div style="display:flex;gap:6px;align-items:center;flex:1;min-width:0;">
-        <button class="marker-btn selected" data-mtype="data" onclick="selectMarkerType(this)">🔌<span>RJ45</span></button>
-        <button class="marker-btn" data-mtype="wifi"          onclick="selectMarkerType(this)">📶<span>WiFi</span></button>
-        <button class="marker-btn" data-mtype="rack"          onclick="selectMarkerType(this)">🗄️<span>Rack</span></button>
-        <button class="marker-btn" data-mtype="sw"            onclick="selectMarkerType(this)">🔀<span>Switch</span></button>
-        <button class="marker-btn" data-mtype="cam"           onclick="selectMarkerType(this)">📷<span>Cámara</span></button>
+      <!-- Fila 2: tipos de marcador -->
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+        <button class="marker-btn selected" data-mtype="data" onclick="selectMarkerType(this)"><span class="mtype-badge" style="background:#2563eb">RJ45</span><span>Toma</span></button>
+        <button class="marker-btn" data-mtype="wifi"          onclick="selectMarkerType(this)"><span class="mtype-badge" style="background:#16a34a">AP</span><span>WiFi</span></button>
+        <button class="marker-btn" data-mtype="rack"          onclick="selectMarkerType(this)"><span class="mtype-badge" style="background:#7c3aed">RACK</span><span>Rack</span></button>
+        <button class="marker-btn" data-mtype="sw"            onclick="selectMarkerType(this)"><span class="mtype-badge" style="background:#d97706">SW</span><span>Switch</span></button>
+        <button class="marker-btn" data-mtype="cam"           onclick="selectMarkerType(this)"><span class="mtype-badge" style="background:#dc2626">CAM</span><span>Cámara</span></button>
       </div>
     </div>
 
@@ -1131,11 +1140,11 @@ let showCables = true;
 let showMarkers = true;
 
 const MARKER_TYPES = {
-  data: { emoji: '🔌', label: 'Toma RJ45', color: '#2563eb' },
-  wifi: { emoji: '📶', label: 'WiFi AP',   color: '#16a34a' },
-  rack: { emoji: '🗄️', label: 'Rack',      color: '#7c3aed' },
-  sw:   { emoji: '🔀', label: 'Switch',    color: '#d97706' },
-  cam:  { emoji: '📷', label: 'Cámara IP', color: '#dc2626' },
+  data: { short: 'RJ45', label: 'Toma RJ45', color: '#2563eb' },
+  wifi: { short: 'AP',   label: 'WiFi AP',   color: '#16a34a' },
+  rack: { short: 'RACK', label: 'Rack',      color: '#7c3aed' },
+  sw:   { short: 'SW',   label: 'Switch',    color: '#d97706' },
+  cam:  { short: 'CAM',  label: 'Cámara IP', color: '#dc2626' },
 };
 
 // Zoom/pan
@@ -1418,53 +1427,77 @@ function renderDraw() {
   }
 }
 
+// Helper para rectángulo redondeado compatible con navegadores sin roundRect
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.arcTo(x + w, y,     x + w, y + r,     r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+  ctx.lineTo(x + r, y + h);
+  ctx.arcTo(x,     y + h, x,     y + h - r, r);
+  ctx.lineTo(x,     y + r);
+  ctx.arcTo(x,     y,     x + r, y,         r);
+  ctx.closePath();
+}
+
 function drawMarkerOnCanvas(ctx, type, cx, cy, name) {
   const mt = MARKER_TYPES[type];
-  const r = 16;
+
+  // Medir texto para calcular ancho de la pastilla
+  ctx.font = 'bold 11px sans-serif';
+  const tw = ctx.measureText(mt.short).width;
+  const padX = 7, padY = 4;
+  const bw = tw + padX * 2;
+  const bh = 18 + padY * 2;  // ~22px de alto
+  const br = 5;
+  const bx = cx - bw / 2;
+  const by = cy - bh / 2;
+
   // Sombra
   ctx.save();
-  ctx.shadowColor = 'rgba(0,0,0,0.25)';
-  ctx.shadowBlur = 4;
+  ctx.shadowColor = 'rgba(0,0,0,0.22)';
+  ctx.shadowBlur = 5;
   ctx.shadowOffsetY = 2;
-  // Círculo fondo
-  ctx.beginPath();
-  ctx.arc(cx, cy, r, 0, Math.PI * 2);
-  ctx.fillStyle = 'white';
+
+  // Pastilla rellena
+  roundRect(ctx, bx, by, bw, bh, br);
+  ctx.fillStyle = mt.color;
   ctx.fill();
-  ctx.strokeStyle = mt.color;
-  ctx.lineWidth = 2.5;
-  ctx.stroke();
   ctx.restore();
-  // Emoji
-  ctx.font = '16px sans-serif';
+
+  // Texto en blanco
+  ctx.font = 'bold 11px sans-serif';
+  ctx.fillStyle = 'white';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(mt.emoji, cx, cy);
+  ctx.fillText(mt.short, cx, cy);
 
-  // Nombre debajo del icono
+  // Nombre debajo de la pastilla
   if (name) {
     ctx.font = 'bold 10px sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
-    // Fondo blanco semitransparente para legibilidad
-    const tw = ctx.measureText(name).width;
-    ctx.fillStyle = 'rgba(255,255,255,0.85)';
-    ctx.fillRect(cx - tw / 2 - 2, cy + r + 1, tw + 4, 13);
+    const nw = ctx.measureText(name).width;
+    ctx.fillStyle = 'rgba(255,255,255,0.88)';
+    ctx.fillRect(cx - nw / 2 - 2, by + bh + 2, nw + 4, 13);
     ctx.fillStyle = mt.color;
-    ctx.fillText(name, cx, cy + r + 2);
+    ctx.fillText(name, cx, by + bh + 3);
   }
 
-  // Modo borrar: cruz roja encima
+  // Modo borrar: círculo rojo con ✕ en esquina superior derecha
   if (deleteMarkerMode) {
+    const dx = bx + bw, dy = by;
     ctx.beginPath();
-    ctx.arc(cx + r * 0.65, cy - r * 0.65, 7, 0, Math.PI * 2);
+    ctx.arc(dx, dy, 7, 0, Math.PI * 2);
     ctx.fillStyle = '#dc2626';
     ctx.fill();
     ctx.fillStyle = 'white';
-    ctx.font = 'bold 10px sans-serif';
+    ctx.font = 'bold 9px sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('✕', cx + r * 0.65, cy - r * 0.65);
+    ctx.fillText('✕', dx, dy);
   }
 }
 
