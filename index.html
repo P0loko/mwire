@@ -446,7 +446,6 @@
       margin-top: 8px;
       font-size: 0.82rem;
       color: var(--muted);
-      flex-shrink: 0;
     }
     .global-coca-row label { white-space: nowrap; }
     .global-coca-input {
@@ -480,7 +479,6 @@
       margin-top: 8px;
       font-size: 0.82rem;
       color: var(--muted);
-      flex-shrink: 0;
     }
     .margin-row input[type=range] { flex: 1; accent-color: var(--primary); }
     .margin-badge {
@@ -679,17 +677,15 @@
     }
     #drawerContent {
       display: none;
-      flex-direction: column;
       max-height: 42vh;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
       padding: 8px 16px;
       padding-bottom: max(12px, env(safe-area-inset-bottom));
     }
-    #drawerContent.open { display: flex; }
+    #drawerContent.open { display: block; }
     #drawerContent .scroll-panel {
-      flex: 1;
-      min-height: 0;        /* clave: permite que flex shrink funcione con scroll */
-      overflow-y: auto;
-      -webkit-overflow-scrolling: touch;
+      overflow: visible;
     }
 
     /* ── SCROLL PANEL (resto de pantallas) ── */
