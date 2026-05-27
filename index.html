@@ -684,9 +684,6 @@
       padding-bottom: max(12px, env(safe-area-inset-bottom));
     }
     #drawerContent.open { display: block; }
-    #drawerContent .scroll-panel {
-      overflow: visible;
-    }
 
     /* ── SCROLL PANEL (resto de pantallas) ── */
     .scroll-panel {
@@ -1002,11 +999,9 @@
       </div>
       <!-- Contenido plegable -->
       <div id="drawerContent">
-        <div class="scroll-panel">
-          <ul class="cable-list" id="cableList">
-            <li style="color:var(--muted);font-size:0.85rem;padding:10px 0;">Aún no hay cables trazados.</li>
-          </ul>
-        </div>
+        <ul class="cable-list" id="cableList">
+          <li style="color:var(--muted);font-size:0.85rem;padding:10px 0;">Aún no hay cables trazados.</li>
+        </ul>
         <div class="global-coca-row" style="margin-top:6px;">
           <label>⬇ Bajada global:</label>
           <input class="global-coca-input" type="number" id="globalDropInput" min="0" step="0.5" value="0" placeholder="m" />
