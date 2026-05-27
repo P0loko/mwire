@@ -677,15 +677,17 @@
     }
     #drawerContent {
       display: none;
+      flex-direction: column;
+      max-height: 42vh;
       padding: 8px 16px;
       padding-bottom: max(12px, env(safe-area-inset-bottom));
-      overflow-y: auto;
-      max-height: 42vh;
     }
-    #drawerContent.open { display: block; }
+    #drawerContent.open { display: flex; }
     #drawerContent .scroll-panel {
-      /* El scroll ahora lo gestiona #drawerContent — sin límite interno */
-      overflow: visible;
+      flex: 1;
+      min-height: 0;        /* clave: permite que flex shrink funcione con scroll */
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
     }
 
     /* ── SCROLL PANEL (resto de pantallas) ── */
