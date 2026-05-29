@@ -405,6 +405,63 @@
       opacity: 0.5;
     }
     .cable-rename:hover { opacity: 1; }
+
+    /* ── FLOOR BAR ── */
+    #floorBar {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      background: white;
+      border-bottom: 1px solid var(--border);
+      overflow-x: auto;
+      scrollbar-width: none;
+      flex-shrink: 0;
+    }
+    #floorBar::-webkit-scrollbar { display: none; }
+    .floor-tab {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      border: 1.5px solid var(--border);
+      background: white;
+      font-size: 0.78rem;
+      font-weight: 500;
+      cursor: pointer;
+      white-space: nowrap;
+      color: var(--text);
+      flex-shrink: 0;
+    }
+    .floor-tab.active { background: var(--primary); color: white; border-color: var(--primary); }
+    .floor-tab-del {
+      background: none; border: none; color: inherit; cursor: pointer;
+      padding: 0 0 0 2px; font-size: 0.72rem; opacity: 0.7; line-height: 1;
+    }
+    .floor-tab-del:hover { opacity: 1; }
+    .floor-add-btn {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      border: 1.5px dashed var(--border);
+      background: white;
+      font-size: 0.78rem; color: var(--muted); cursor: pointer; white-space: nowrap; flex-shrink: 0;
+    }
+    .floor-add-btn:hover { border-color: var(--primary); color: var(--primary); }
+    .floor-name-edit {
+      width: 70px; padding: 2px 6px;
+      border: 1.5px solid white; border-radius: 10px;
+      font-size: 0.78rem; background: rgba(255,255,255,0.25); color: white; outline: none;
+    }
+    .floor-tab:not(.active) .floor-name-edit { border-color: var(--primary); background: white; color: var(--text); }
+    .grand-total-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 8px 0 4px;
+      border-top: 1px solid var(--border);
+      margin-top: 6px;
+      font-size: 0.85rem; color: var(--muted);
+    }
     .cable-del {
       background: none;
       border: none;
@@ -1016,6 +1073,11 @@
   <!-- ══ SCREEN 3: TRAZAR CABLES ══ -->
   <div class="screen" id="screen3">
 
+    <!-- Selector de plantas -->
+    <div id="floorBar">
+      <!-- populated by renderFloorTabs() -->
+    </div>
+
     <!-- Tabs -->
     <div class="tab-bar">
       <button class="tab active" id="tab-cables" onclick="switchTab('cables')">✏️ Cables</button>
@@ -1102,6 +1164,10 @@
           <input type="range" id="marginSlider" min="0" max="30" value="10" oninput="updateMargin()" />
           <span class="margin-badge" id="marginLabel">+10%</span>
         </div>
+        <div class="grand-total-row" id="grandTotalRow" style="display:none;">
+          <span>🏢 Total proyecto</span>
+          <span id="grandTotalMeters" style="font-weight:700;color:var(--primary);">0.0 m</span>
+        </div>
       </div>
     </div>
   </div>
@@ -1135,6 +1201,28 @@
 // ═══════════════════════════════════════════════
 //  ESTADO GLOBAL
 // ═══════════════════════════════════════════════
+
+// ── Sistema de plantas ──────────────────────────
+function createFloor(name) {
+  return { id: Date.now() + Math.random(), name, imgSrc: null, imgW: 0, imgH: 0,
+           scale: null, calibPts: [], calibPhase: 'A', cables: [], markers: [],
+           offsetX: 0, offsetY: 0, zoomLevel: 1 };
+}
+let floors = [createFloor('Planta 1')];
+let currentFloorIdx = 0;
+
+function saveCurrentFloorState() {
+  const f = floors[currentFloorIdx];
+  f.imgSrc    = img ? img.src : null;
+  f.imgW      = imgW; f.imgH = imgH;
+  f.scale     = scale;
+  f.calibPts  = calibPts.map(p => ({...p}));
+  f.calibPhase = calibPhase;
+  f.cables    = cables.map(c => ({...c, points: [...c.points]}));
+  f.markers   = [...markers];
+  f.offsetX   = offsetX; f.offsetY = offsetY; f.zoomLevel = zoomLevel;
+}
+
 let img = null;
 let imgW = 0, imgH = 0;
 let scale = null;          // metros por píxel de imagen (independiente del zoom)
@@ -1195,7 +1283,7 @@ function goStep(n) {
     if (i + 1 === n) s.classList.add('active');
   });
   if (n === 2) { setTimeout(initCalibCanvas, 60); }
-  if (n === 3) { setTimeout(initDrawCanvas, 60); }
+  if (n === 3) { setTimeout(initDrawCanvas, 60); renderFloorTabs(); }
 }
 
 // ═══════════════════════════════════════════════
@@ -1210,6 +1298,9 @@ function loadImage(e) {
     img.onload = () => {
       imgW = img.width;
       imgH = img.height;
+      floors[currentFloorIdx].imgSrc = ev.target.result;
+      floors[currentFloorIdx].imgW = imgW;
+      floors[currentFloorIdx].imgH = imgH;
       document.getElementById('btnGoCalib').disabled = false;
       // Mostrar preview
       const previewImg = document.getElementById('previewImg');
@@ -1352,6 +1443,9 @@ function confirmCalib() {
   const pixelDist = Math.sqrt(dx * dx + dy * dy);
   scale = dist / pixelDist;
   calibPhase = 'done';
+  floors[currentFloorIdx].scale = scale;
+  floors[currentFloorIdx].calibPts = calibPts.map(p => ({...p}));
+  floors[currentFloorIdx].calibPhase = 'done';
 
   document.getElementById('badge2').textContent = 'Punto B ✔';
   toast(`✔ Escala configurada: 1 px = ${(scale * 100).toFixed(3)} cm`);
@@ -1641,6 +1735,154 @@ function finishCable() {
   toast(`✔ "${name}" añadido: ${meters.toFixed(2)} m`);
 }
 
+// ═══════════════════════════════════════════════
+//  GESTIÓN DE PLANTAS
+// ═══════════════════════════════════════════════
+function renderFloorTabs() {
+  const bar = document.getElementById('floorBar');
+  if (!bar) return;
+  bar.innerHTML = floors.map((f, i) => `
+    <button class="floor-tab${i === currentFloorIdx ? ' active' : ''}" onclick="floorTabClick(${i})">
+      <span>${f.name}</span>
+      ${floors.length > 1 ? `<span class="floor-tab-del" onclick="deleteFloor(event,${i})">✕</span>` : ''}
+    </button>
+  `).join('') + `<button class="floor-add-btn" onclick="addFloor()">+ Planta</button>`;
+}
+
+function floorTabClick(idx) {
+  if (idx === currentFloorIdx) startRenameFloor(idx);
+  else switchFloor(idx);
+}
+
+function switchFloor(idx) {
+  if (idx === currentFloorIdx) return;
+  saveCurrentFloorState();
+  applyFloor(idx);
+}
+
+function applyFloor(idx) {
+  currentFloorIdx = idx;
+  const f = floors[idx];
+  imgW = f.imgW || 0; imgH = f.imgH || 0;
+  scale = f.scale || null;
+  calibPts = (f.calibPts || []).map(p => ({...p}));
+  calibPhase = f.calibPhase || 'A';
+  cables = (f.cables || []).map(c => ({...c, points: [...c.points]}));
+  markers = [...(f.markers || [])];
+  offsetX = f.offsetX || 0; offsetY = f.offsetY || 0; zoomLevel = f.zoomLevel || 1;
+  currentPoints = []; drawingActive = false;
+  const btn = document.getElementById('btnToggleDraw');
+  if (btn) { btn.textContent = '✏️ Trazar'; btn.style.background = '#fef9c3'; }
+
+  renderFloorTabs();
+
+  if (f.imgSrc) {
+    img = new Image();
+    img.onload = () => {
+      imgW = img.width; imgH = img.height;
+      floors[idx].imgW = imgW; floors[idx].imgH = imgH;
+      document.getElementById('btnGoCalib').disabled = false;
+      document.getElementById('previewImg').src = img.src;
+      document.getElementById('previewWrap').style.display = 'block';
+      if (scale) { goStep(3); updateCableList(); }
+      else { goStep(2); }
+    };
+    img.src = f.imgSrc;
+  } else {
+    img = null;
+    document.getElementById('btnGoCalib').disabled = true;
+    document.getElementById('previewWrap').style.display = 'none';
+    document.getElementById('previewImg').src = '';
+    // Go to step 1 directly (sin validación)
+    currentStep = 1;
+    document.querySelectorAll('.screen').forEach((s, i) => s.classList.toggle('active', i === 0));
+    document.querySelectorAll('.step').forEach((s, i) => {
+      s.classList.remove('active', 'done');
+      if (i === 0) s.classList.add('active');
+    });
+    updateCableList();
+  }
+}
+
+function addFloor() {
+  saveCurrentFloorState();
+  const newFloor = createFloor(`Planta ${floors.length + 1}`);
+  floors.push(newFloor);
+  // Reset calib UI for new floor
+  document.getElementById('badge1').textContent = 'Punto A';
+  document.getElementById('badge2').textContent = 'Punto B';
+  document.getElementById('badge1').classList.remove('set');
+  document.getElementById('badge2').classList.remove('set');
+  document.getElementById('calibHint').innerHTML =
+    '<strong>Paso 1:</strong> Toca el primer punto de una distancia conocida en el plano.';
+  document.getElementById('btnLockA').style.display = 'none';
+  document.getElementById('btnConfirmCalib').disabled = true;
+  document.getElementById('btnConfirmCalib').style.display = '';
+  document.getElementById('btnGoDrawing').style.display = 'none';
+  document.getElementById('realDistRow').style.display = 'none';
+  document.getElementById('realDist').value = '';
+  document.getElementById('fileInput').value = '';
+  document.getElementById('cameraInput').value = '';
+  applyFloor(floors.length - 1);
+  toast(`🏢 ${newFloor.name} añadida — carga su plano`);
+}
+
+let _pendingDeleteFloor = -1;
+let _pendingDeleteTimer = null;
+function deleteFloor(event, idx) {
+  event.stopPropagation();
+  if (floors.length <= 1) { toast('No puedes eliminar la única planta'); return; }
+  if (_pendingDeleteFloor === idx) {
+    clearTimeout(_pendingDeleteTimer);
+    _pendingDeleteFloor = -1;
+    doDeleteFloor(idx);
+  } else {
+    _pendingDeleteFloor = idx;
+    clearTimeout(_pendingDeleteTimer);
+    toast(`¿Eliminar "${floors[idx].name}"? Pulsa ✕ de nuevo para confirmar`);
+    _pendingDeleteTimer = setTimeout(() => { _pendingDeleteFloor = -1; }, 3000);
+  }
+}
+
+function doDeleteFloor(idx) {
+  const name = floors[idx].name;
+  floors.splice(idx, 1);
+  let newIdx = currentFloorIdx;
+  if (currentFloorIdx >= floors.length) newIdx = floors.length - 1;
+  else if (idx < currentFloorIdx) newIdx = currentFloorIdx - 1;
+  // Reset currentFloorIdx before applyFloor so saveCurrentFloorState doesn't overwrite
+  currentFloorIdx = newIdx;
+  applyFloor(newIdx);
+  toast(`"${name}" eliminada`);
+}
+
+function startRenameFloor(idx) {
+  const bar = document.getElementById('floorBar');
+  const tabs = bar ? bar.querySelectorAll('.floor-tab') : [];
+  const tab = tabs[idx];
+  if (!tab) return;
+  const nameSpan = tab.querySelector('span');
+  if (!nameSpan) return;
+  const currentName = floors[idx].name;
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.value = currentName;
+  input.maxLength = 20;
+  input.className = 'floor-name-edit';
+  nameSpan.replaceWith(input);
+  input.focus(); input.select();
+  function confirm() {
+    const newName = input.value.trim() || currentName;
+    floors[idx].name = newName;
+    renderFloorTabs();
+  }
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); confirm(); }
+    if (e.key === 'Escape') { renderFloorTabs(); }
+  });
+  input.addEventListener('blur', confirm);
+}
+
 function deleteCable(idx) {
   cables.splice(idx, 1);
   updateCableList();
@@ -1802,6 +2044,20 @@ function updateMargin() {
   const base = cables.reduce((s, c) => s + cableTotal(c), 0);
   const total = base * (1 + margin);
   document.getElementById('totalMeters').textContent = `${total.toFixed(2)} m`;
+
+  // Total global de todas las plantas
+  const gtRow = document.getElementById('grandTotalRow');
+  if (gtRow) {
+    if (floors.length > 1) {
+      saveCurrentFloorState();
+      const grandBase = floors.reduce((sum, f) => sum + (f.cables||[]).reduce((s, c) => s + cableTotal(c), 0), 0);
+      const grandTotal = grandBase * (1 + margin);
+      document.getElementById('grandTotalMeters').textContent = `${grandTotal.toFixed(2)} m`;
+      gtRow.style.display = 'flex';
+    } else {
+      gtRow.style.display = 'none';
+    }
+  }
 }
 
 // ── CAPAS ──
@@ -1998,6 +2254,9 @@ function saveProject() {
   const nameInput = document.getElementById('projectNameInput');
   const name = nameInput.value.trim() || `Proyecto ${new Date().toLocaleDateString('es-ES')}`;
 
+  // Guardar estado de la planta activa antes de serializar
+  saveCurrentFloorState();
+
   // Generar miniatura de la imagen (pequeña para no saturar localStorage)
   const thumb = generateThumb(img, 120, 90);
 
@@ -2006,13 +2265,8 @@ function saveProject() {
     name,
     date: new Date().toLocaleDateString('es-ES', { day:'2-digit', month:'short', year:'numeric' }),
     thumb,
-    imageData: img.src,
-    imgW, imgH,
-    calibPts: [...calibPts],
-    calibPhase,
-    scale,
-    cables: cables.map(c => ({ ...c, points: [...c.points] })),
-    markers: [...markers],
+    floors: floors.map(f => ({...f, cables: f.cables.map(c => ({...c, points:[...c.points]})), markers:[...f.markers], calibPts:[...(f.calibPts||[])]})),
+    currentFloorIdx,
     margin: parseInt(document.getElementById('marginSlider').value)
   };
 
@@ -2047,43 +2301,56 @@ function loadProject(id) {
   const p = list.find(x => x.id === id);
   if (!p) return;
 
-  // Restaurar imagen
+  // Compatibilidad: formato antiguo (sin floors) → convertir a floors
+  if (p.floors) {
+    floors = p.floors;
+    currentFloorIdx = p.currentFloorIdx || 0;
+  } else {
+    floors = [{
+      id: Date.now(), name: 'Planta 1',
+      imgSrc: p.imageData, imgW: p.imgW, imgH: p.imgH,
+      scale: p.scale, calibPts: p.calibPts || [], calibPhase: p.calibPhase || 'done',
+      cables: p.cables || [], markers: p.markers || [],
+      offsetX: 0, offsetY: 0, zoomLevel: 1
+    }];
+    currentFloorIdx = 0;
+  }
+
+  // Restaurar margen
+  if (p.margin !== undefined) {
+    document.getElementById('marginSlider').value = p.margin;
+    margin = p.margin / 100;
+  }
+
+  closeDrawer();
+
+  const f = floors[currentFloorIdx];
+  if (!f.imgSrc) { toast('Error: plano sin imagen'); return; }
+
   img = new Image();
   img.onload = () => {
-    imgW = p.imgW;
-    imgH = p.imgH;
-    calibPts = p.calibPts || [];
-    calibPhase = p.calibPhase || 'done';
-    scale = p.scale;
-    cables  = p.cables  || [];
-    markers = p.markers || [];
+    imgW = f.imgW || img.width; imgH = f.imgH || img.height;
+    scale = f.scale || null;
+    calibPts = (f.calibPts || []).map(p2 => ({...p2}));
+    calibPhase = f.calibPhase || 'done';
+    cables  = (f.cables  || []).map(c => ({...c, points:[...c.points]}));
+    markers = [...(f.markers || [])];
+    offsetX = f.offsetX || 0; offsetY = f.offsetY || 0; zoomLevel = f.zoomLevel || 1;
 
-    // Habilitar paso 1
     document.getElementById('btnGoCalib').disabled = false;
-    const previewImg = document.getElementById('previewImg');
-    const previewWrap = document.getElementById('previewWrap');
-    previewImg.src = img.src;
-    previewWrap.style.display = 'block';
+    document.getElementById('previewImg').src = img.src;
+    document.getElementById('previewWrap').style.display = 'block';
 
-    // Restaurar margen
-    if (p.margin !== undefined) {
-      document.getElementById('marginSlider').value = p.margin;
-      margin = p.margin / 100;
-    }
-
-    closeDrawer();
-
-    // Ir directamente al paso 3 si tiene escala
     if (scale) {
       goStep(3);
       updateCableList();
       toast(`✔ "${p.name}" cargado`);
     } else {
       goStep(1);
-      toast(`Proyecto cargado — calibra la escala`);
+      toast('Proyecto cargado — calibra la escala');
     }
   };
-  img.src = p.imageData;
+  img.src = f.imgSrc;
 }
 
 function deleteProject(id, e) {
@@ -2108,6 +2375,8 @@ function newProject() {
 }
 
 function doNewProject() {
+  floors = [createFloor('Planta 1')];
+  currentFloorIdx = 0;
   img = null; imgW = 0; imgH = 0;
   scale = null; calibPts = []; calibPhase = 'A';
   cables = []; currentPoints = []; markers = []; drawingActive = false; deleteMarkerMode = false;
@@ -2175,25 +2444,36 @@ function renderProjectList() {
       </div>`;
     return;
   }
-  container.innerHTML = list.map(p => `
+  container.innerHTML = list.map(p => {
+    const numFloors = p.floors ? p.floors.length : 1;
+    const totalCables = p.floors
+      ? p.floors.reduce((s, f) => s + (f.cables?.length || 0), 0)
+      : (p.cables?.length || 0);
+    const hasScale = p.floors ? p.floors.some(f => f.scale) : !!p.scale;
+    return `
     <div class="project-card" onclick="loadProject(${p.id})">
       <img class="project-thumb" src="${p.thumb}" alt="" />
       <div class="project-info">
         <div class="project-name">${p.name}</div>
         <div class="project-meta">
-          ${p.date} · ${p.cables?.length || 0} cable${p.cables?.length !== 1 ? 's' : ''}
-          ${p.scale ? ' · ' + totalMetersForProject(p) : ''}
+          ${p.date}${numFloors > 1 ? ` · ${numFloors} plantas` : ''} · ${totalCables} cable${totalCables !== 1 ? 's' : ''}
+          ${hasScale ? ' · ' + totalMetersForProject(p) : ''}
         </div>
       </div>
       <button class="project-del" onclick="deleteProject(${p.id}, event)" title="Eliminar">🗑</button>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 }
 
 function totalMetersForProject(p) {
-  if (!p.cables || !p.scale) return '';
-  const base = p.cables.reduce((s, c) => s + (c.meters || 0) + (c.extraDrop || 0) + (c.extraSlack || 0), 0);
   const m = parseInt(p.margin || 10) / 100;
+  let base = 0;
+  if (p.floors) {
+    base = p.floors.reduce((sum, f) =>
+      sum + (f.cables||[]).reduce((s, c) => s + (c.meters||0) + (c.extraDrop||0) + (c.extraSlack||0), 0), 0);
+  } else if (p.cables) {
+    base = p.cables.reduce((s, c) => s + (c.meters||0) + (c.extraDrop||0) + (c.extraSlack||0), 0);
+  } else return '';
   return (base * (1 + m)).toFixed(1) + ' m';
 }
 
@@ -2254,3 +2534,239 @@ window.addEventListener('appinstalled', () => {
 </script>
 </body>
 </html>
+
+const STORAGE_KEY = 'mwire-projects';
+function getProjects() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
+  catch(e) { return []; }
+}
+function setProjects(list) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+}
+
+function saveProject() {
+  if (!img) { toast('No hay ningún proyecto abierto'); closeSaveModal(); return; }
+  const nameInput = document.getElementById('projectNameInput');
+  const name = nameInput.value.trim() || `Proyecto ${new Date().toLocaleDateString('es-ES')}`;
+  saveCurrentFloorState();
+  const thumb = generateThumb(img, 120, 90);
+  const project = {
+    id: Date.now(), name,
+    date: new Date().toLocaleDateString('es-ES', { day:'2-digit', month:'short', year:'numeric' }),
+    thumb,
+    floors: floors.map(f => ({...f, cables: f.cables.map(c => ({...c, points:[...c.points]})), markers:[...f.markers], calibPts:[...(f.calibPts||[])]})),
+    currentFloorIdx,
+    margin: parseInt(document.getElementById('marginSlider').value)
+  };
+  const list = getProjects();
+  list.unshift(project);
+  try {
+    setProjects(list);
+    closeSaveModal();
+    toast(`✔ "${name}" guardado`);
+  } catch(e) {
+    toast('Sin espacio — borra proyectos antiguos');
+  }
+}
+
+function generateThumb(imgEl, w, h) {
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const ctx = c.getContext('2d');
+  const ratio = Math.min(w / imgEl.width, h / imgEl.height);
+  const dw = imgEl.width * ratio;
+  const dh = imgEl.height * ratio;
+  ctx.fillStyle = '#1e293b';
+  ctx.fillRect(0, 0, w, h);
+  ctx.drawImage(imgEl, (w - dw) / 2, (h - dh) / 2, dw, dh);
+  return c.toDataURL('image/jpeg', 0.6);
+}
+
+function loadProject(id) {
+  const list = getProjects();
+  const p = list.find(x => x.id === id);
+  if (!p) return;
+  if (p.floors) {
+    floors = p.floors;
+    currentFloorIdx = p.currentFloorIdx || 0;
+  } else {
+    floors = [{
+      id: Date.now(), name: 'Planta 1',
+      imgSrc: p.imageData, imgW: p.imgW, imgH: p.imgH,
+      scale: p.scale, calibPts: p.calibPts || [], calibPhase: p.calibPhase || 'done',
+      cables: p.cables || [], markers: p.markers || [],
+      offsetX: 0, offsetY: 0, zoomLevel: 1
+    }];
+    currentFloorIdx = 0;
+  }
+  if (p.margin !== undefined) {
+    document.getElementById('marginSlider').value = p.margin;
+    margin = p.margin / 100;
+  }
+  closeDrawer();
+  const f = floors[currentFloorIdx];
+  if (!f || !f.imgSrc) { toast('Error: plano sin imagen'); return; }
+  img = new Image();
+  img.onload = () => {
+    imgW = f.imgW || img.width; imgH = f.imgH || img.height;
+    scale = f.scale || null;
+    calibPts = (f.calibPts || []).map(pt => ({...pt}));
+    calibPhase = f.calibPhase || 'done';
+    cables  = (f.cables  || []).map(c => ({...c, points:[...c.points]}));
+    markers = [...(f.markers || [])];
+    offsetX = f.offsetX || 0; offsetY = f.offsetY || 0; zoomLevel = f.zoomLevel || 1;
+    document.getElementById('btnGoCalib').disabled = false;
+    document.getElementById('previewImg').src = img.src;
+    document.getElementById('previewWrap').style.display = 'block';
+    if (scale) {
+      goStep(3);
+      updateCableList();
+      toast(`✔ "${p.name}" cargado`);
+    } else {
+      goStep(1);
+      toast('Proyecto cargado — calibra la escala');
+    }
+  };
+  img.src = f.imgSrc;
+}
+
+function deleteProject(id, e) {
+  e.stopPropagation();
+  const list = getProjects().filter(x => x.id !== id);
+  setProjects(list);
+  renderProjectList();
+  toast('Proyecto eliminado');
+}
+
+function renderProjectList() {
+  const list = getProjects();
+  const el = document.getElementById('projectList');
+  if (list.length === 0) {
+    el.innerHTML = '<div style="color:var(--muted);font-size:0.85rem;padding:16px;">No hay proyectos guardados.</div>';
+    return;
+  }
+  el.innerHTML = list.map(p => `
+    <div class="project-item" onclick="loadProject(${p.id})">
+      <img class="project-thumb" src="${p.thumb}" alt="" />
+      <div class="project-info">
+        <div class="project-name">${p.name}</div>
+        <div class="project-meta">
+          ${p.date}${p.floors && p.floors.length > 1 ? ` · ${p.floors.length} plantas` : ''}
+          ${(p.scale || p.floors) ? ' · ' + totalMetersForProject(p) : ''}
+        </div>
+      </div>
+      <button class="project-del" onclick="deleteProject(${p.id}, event)" title="Eliminar">🗑</button>
+    </div>
+  `).join('');
+}
+
+function totalMetersForProject(p) {
+  const m = parseInt(p.margin || 10) / 100;
+  let base = 0;
+  if (p.floors) {
+    base = p.floors.reduce((sum, f) =>
+      sum + (f.cables||[]).reduce((s, c) => s + (c.meters||0) + (c.extraDrop||0) + (c.extraSlack||0), 0), 0);
+  } else if (p.cables) {
+    base = p.cables.reduce((s, c) => s + (c.meters||0) + (c.extraDrop||0) + (c.extraSlack||0), 0);
+  } else return '';
+  return (base * (1 + m)).toFixed(1) + ' m';
+}
+
+function showDrawerConfirm(title, subtitle, onConfirm) {
+  const existing = document.getElementById('drawerConfirm');
+  if (existing) existing.remove();
+  const box = document.createElement('div');
+  box.id = 'drawerConfirm';
+  box.style.cssText = 'background:#fff7ed;border:1.5px solid #fb923c;border-radius:10px;padding:14px;margin:12px 16px;';
+  box.innerHTML = `
+    <div style="font-weight:600;margin-bottom:4px;">${title}</div>
+    <div style="font-size:0.82rem;color:var(--muted);margin-bottom:10px;">${subtitle}</div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-sm" style="flex:1;background:#fb923c;color:white;border-color:#ea580c;"
+        onclick="document.getElementById('drawerConfirm').remove();(${onConfirm.toString()})()">Sí, continuar</button>
+      <button class="btn btn-outline btn-sm" style="flex:1;"
+        onclick="document.getElementById('drawerConfirm').remove()">Cancelar</button>
+    </div>`;
+  const section = document.querySelector('.drawer-section');
+  section.after(box);
+}
+
+function newProject() {
+  if (img && (cables.length > 0 || calibPts.length > 0)) {
+    showDrawerConfirm('Empezar proyecto nuevo?', 'Perderás los cambios no guardados.', doNewProject);
+  } else {
+    doNewProject();
+  }
+}
+
+function doNewProject() {
+  floors = [createFloor('Planta 1')];
+  currentFloorIdx = 0;
+  img = null; imgW = 0; imgH = 0;
+  scale = null; calibPts = []; calibPhase = 'A';
+  cables = []; currentPoints = []; markers = []; drawingActive = false; deleteMarkerMode = false;
+  showCables = true; showMarkers = true;
+  calibCanvas = null; calibCtx = null;
+  drawCanvas = null; drawCtx = null;
+  document.getElementById('btnGoCalib').disabled = true;
+  document.getElementById('previewWrap').style.display = 'none';
+  document.getElementById('previewImg').src = '';
+  document.getElementById('fileInput').value = '';
+  document.getElementById('cameraInput').value = '';
+  document.getElementById('badge1').textContent = 'Punto A';
+  document.getElementById('badge2').textContent = 'Punto B';
+  document.getElementById('badge1').classList.remove('set');
+  document.getElementById('badge2').classList.remove('set');
+  document.getElementById('calibHint').innerHTML =
+    '<strong>Paso 1:</strong> Toca el primer punto de una distancia conocida en el plano.';
+  document.getElementById('btnLockA').style.display = 'none';
+  document.getElementById('btnConfirmCalib').disabled = true;
+  document.getElementById('btnConfirmCalib').style.display = '';
+  document.getElementById('btnGoDrawing').style.display = 'none';
+  document.getElementById('realDistRow').style.display = 'none';
+  document.getElementById('realDist').value = '';
+  document.querySelectorAll('.step').forEach(s => s.classList.remove('done', 'active'));
+  document.getElementById('step1').classList.add('active');
+  updateCableList();
+  closeDrawer();
+  document.querySelectorAll('.screen').forEach((s, i) => s.classList.toggle('active', i === 0));
+  currentStep = 1;
+  toast('Nuevo proyecto');
+}
+
+// PWA
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js')
+      .catch(err => console.warn('SW no registrado:', err));
+  });
+  navigator.serviceWorker.addEventListener('message', event => {
+    if (event.data?.type === 'SW_UPDATED') {
+      document.getElementById('updateBanner').classList.add('show');
+    }
+  });
+  document.getElementById('btnDismissUpdate').addEventListener('click', () => {
+    document.getElementById('updateBanner').classList.remove('show');
+  });
+}
+
+let deferredPrompt = null;
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredPrompt = e;
+  document.getElementById('installBanner').style.display = 'flex';
+});
+
+document.getElementById('btnInstall').addEventListener('click', async () => {
+  if (!deferredPrompt) return;
+  deferredPrompt.prompt();
+  const { outcome } = await deferredPrompt.userChoice;
+  deferredPrompt = null;
+  document.getElementById('installBanner').style.display = 'none';
+  if (outcome === 'accepted') toast('✔ MWire instalada en tu pantalla de inicio');
+});
+
+document.getElementById('btnDismissInstall').addEventListener('click', () => {
+  document.getElementById('installBanner').style.display = 'none';
+});
+
