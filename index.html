@@ -1555,6 +1555,21 @@ function onDrawPointerUp(e) {
 }
 
 function toggleDrawing() {
+  if (!drawingActive) {
+    // Validar nombre duplicado antes de empezar a trazar
+    const nameInput = document.getElementById('cableNameInput');
+    const name = nameInput.value.trim();
+    if (name && cables.some(c => c.name.toLowerCase() === name.toLowerCase())) {
+      nameInput.style.borderColor = '#dc2626';
+      nameInput.style.background = '#fef2f2';
+      setTimeout(() => {
+        nameInput.style.borderColor = '';
+        nameInput.style.background = '';
+      }, 2000);
+      toast(`Ya existe un cable llamado "${name}"`);
+      return;
+    }
+  }
   drawingActive = !drawingActive;
   const btn = document.getElementById('btnToggleDraw');
   if (drawingActive) {
@@ -1588,6 +1603,9 @@ function finishCable() {
   const name = nameInput.value.trim() || `Cable ${cables.length + 1}`;
 
   if (cables.some(c => c.name.toLowerCase() === name.toLowerCase())) {
+    nameInput.style.borderColor = '#dc2626';
+    nameInput.style.background = '#fef2f2';
+    setTimeout(() => { nameInput.style.borderColor = ''; nameInput.style.background = ''; }, 2000);
     toast(`Ya existe un cable llamado "${name}"`); return;
   }
 
