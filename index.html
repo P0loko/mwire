@@ -384,7 +384,27 @@
       flex-shrink: 0;
     }
     .cable-name { flex: 1; font-weight: 500; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .cable-name-edit {
+      flex: 1; min-width: 0;
+      padding: 3px 7px;
+      border: 1.5px solid var(--primary);
+      border-radius: 6px;
+      font-size: 0.88rem;
+      font-weight: 500;
+      outline: none;
+      background: #eff6ff;
+    }
     .cable-meters { color: var(--primary); font-weight: 700; white-space: nowrap; }
+    .cable-rename {
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 2px 4px;
+      font-size: 0.9rem;
+      line-height: 1;
+      opacity: 0.5;
+    }
+    .cable-rename:hover { opacity: 1; }
     .cable-del {
       background: none;
       border: none;
@@ -1627,6 +1647,51 @@ function deleteCable(idx) {
   renderDraw();
 }
 
+function startRenameCable(i) {
+  const nameSpan = document.getElementById(`cable-name-${i}`);
+  if (!nameSpan) return;
+  const currentName = cables[i].name;
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.value = currentName;
+  input.maxLength = 20;
+  input.className = 'cable-name-edit';
+  input.setAttribute('data-idx', i);
+  nameSpan.replaceWith(input);
+  input.focus();
+  input.select();
+
+  function confirm() {
+    const newName = input.value.trim();
+    if (!newName) { cancelRename(i, currentName, input); return; }
+    if (newName.toLowerCase() !== currentName.toLowerCase() &&
+        cables.some((c, ci) => ci !== i && c.name.toLowerCase() === newName.toLowerCase())) {
+      input.style.borderColor = '#dc2626';
+      input.style.background = '#fef2f2';
+      toast(`Ya existe un cable llamado "${newName}"`);
+      setTimeout(() => { input.style.borderColor = ''; input.style.background = '#eff6ff'; }, 2000);
+      return;
+    }
+    cables[i].name = newName;
+    updateCableList();
+    renderDraw();
+  }
+
+  function cancelRename(idx, original, el) {
+    const span = document.createElement('span');
+    span.className = 'cable-name';
+    span.id = `cable-name-${idx}`;
+    span.textContent = original;
+    el.replaceWith(span);
+  }
+
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); confirm(); }
+    if (e.key === 'Escape') { cancelRename(i, currentName, input); }
+  });
+  input.addEventListener('blur', confirm);
+}
+
 function cableTotal(c) {
   return (c.meters || 0) + (c.extraDrop || 0) + (c.extraSlack || 0);
 }
@@ -1649,8 +1714,9 @@ function updateCableList() {
     <li class="cable-item" id="cable-item-${i}">
       <div class="cable-row">
         <span class="cable-color" style="background:${c.color}"></span>
-        <span class="cable-name">${c.name}</span>
-        <span class="cable-meters">${total.toFixed(2)} m</span>
+        <span class="cable-name" id="cable-name-${i}">${c.name}</span>
+        <span class="cable-meters" id="cable-meters-${i}">${total.toFixed(2)} m</span>
+        <button class="cable-rename" onclick="startRenameCable(${i})" title="Renombrar">✏️</button>
         <button class="cable-expand${hasExtras ? ' open' : ''}" id="expand-btn-${i}" onclick="toggleExtras(${i})" title="Metros extra">▾</button>
         <button class="cable-del" onclick="deleteCable(${i})">✕</button>
       </div>
