@@ -2720,8 +2720,8 @@ async function doExport() {
 
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-  const pageW = 210, pageH = 297, margin = 10;
-  const imgMaxW = pageW - margin * 2;
+  const pageW = 210, pageH = 297, pad = 10;   // pad = margen de página en mm
+  const imgMaxW = pageW - pad * 2;
 
   for (let fi = 0; fi < floors.length; fi++) {
     const f = floors[fi];
@@ -2731,9 +2731,12 @@ async function doExport() {
     statusEl.textContent = `Generando ${f.name}… (${fi+1}/${floors.length})`;
     await new Promise(r => setTimeout(r, 0)); // yield UI
 
+    // El margen % activo (variable global 'margin' = fracción, ej. 0.10 = 10%)
+    const marginPct = margin;   // fracción, NO la variable 'pad'
+
     // Título de planta
     doc.setFontSize(14); doc.setFont('helvetica', 'bold');
-    doc.text(f.name, margin, margin + 6);
+    doc.text(f.name, pad, pad + 6);
 
     // Renderizar canvas
     const canvas = await renderFloorToCanvas(f, exCables, exMarkers);
@@ -2742,48 +2745,47 @@ async function doExport() {
     // Calcular tamaño proporcional
     const ratio = canvas.height / canvas.width;
     const drawW = imgMaxW;
-    const drawH = Math.min(drawW * ratio, pageH - margin * 2 - 30);
-    const imgY = margin + 12;
-    doc.addImage(imgData, 'JPEG', margin, imgY, drawW, drawH);
+    const drawH = Math.min(drawW * ratio, pageH - pad * 2 - 30);
+    const imgY = pad + 12;
+    doc.addImage(imgData, 'JPEG', pad, imgY, drawW, drawH);
 
     // Tabla de cables
     let y = imgY + drawH + 8;
     if (f.cables && f.cables.length > 0) {
+      const marginLabel = Math.round(marginPct * 100);
       doc.setFontSize(9); doc.setFont('helvetica', 'bold');
       doc.setFillColor(37, 99, 235);
       doc.setTextColor(255, 255, 255);
-      doc.rect(margin, y, imgMaxW, 6, 'F');
-      doc.text('Cable', margin + 2, y + 4.2);
-      doc.text('Medido', margin + 60, y + 4.2);
-      doc.text('Extras', margin + 90, y + 4.2);
-      doc.text(`Con margen (${Math.round(f.margin||0)||Math.round(margin*100)}%)`, margin + 130, y + 4.2);
+      doc.rect(pad, y, imgMaxW, 6, 'F');
+      doc.text('Cable', pad + 2, y + 4.2);
+      doc.text('Medido', pad + 60, y + 4.2);
+      doc.text('Extras', pad + 90, y + 4.2);
+      doc.text(`Con margen (+${marginLabel}%)`, pad + 130, y + 4.2);
       y += 6;
 
       doc.setTextColor(0, 0, 0);
       f.cables.forEach((cable, ci) => {
-        if (y > pageH - margin - 8) { doc.addPage(); y = margin + 6; }
+        if (y > pageH - pad - 8) { doc.addPage(); y = pad + 6; }
         const raw = (cable.meters||0) + (cable.extraDrop||0) + (cable.extraSlack||0);
-        const pct = (f.margin !== undefined ? f.margin : Math.round(margin * 100)) / 100;
-        const withM = raw * (1 + pct);
+        const withM = raw * (1 + marginPct);
         doc.setFillColor(ci % 2 === 0 ? 248 : 255, ci % 2 === 0 ? 250 : 255, ci % 2 === 0 ? 252 : 255);
-        doc.rect(margin, y, imgMaxW, 5.5, 'F');
+        doc.rect(pad, y, imgMaxW, 5.5, 'F');
         doc.setFont('helvetica', 'normal'); doc.setFontSize(8);
-        doc.text(cable.name || `Cable ${ci+1}`, margin + 2, y + 3.8);
-        doc.text(`${(cable.meters||0).toFixed(2)} m`, margin + 60, y + 3.8);
+        doc.text(cable.name || `Cable ${ci+1}`, pad + 2, y + 3.8);
+        doc.text(`${(cable.meters||0).toFixed(2)} m`, pad + 60, y + 3.8);
         const extras = (cable.extraDrop||0) + (cable.extraSlack||0);
-        doc.text(extras > 0 ? `+${extras.toFixed(1)} m` : '—', margin + 90, y + 3.8);
-        doc.text(`${withM.toFixed(2)} m`, margin + 130, y + 3.8);
+        doc.text(extras > 0 ? `+${extras.toFixed(1)} m` : '—', pad + 90, y + 3.8);
+        doc.text(`${withM.toFixed(2)} m`, pad + 130, y + 3.8);
         y += 5.5;
       });
 
       // Total de la planta
       const totalRaw = f.cables.reduce((s, c) => s + (c.meters||0)+(c.extraDrop||0)+(c.extraSlack||0), 0);
-      const pct = (f.margin !== undefined ? f.margin : Math.round(margin * 100)) / 100;
       doc.setFont('helvetica', 'bold'); doc.setFontSize(9);
       doc.setFillColor(219, 234, 254);
-      doc.rect(margin, y, imgMaxW, 6, 'F');
-      doc.text('TOTAL PLANTA', margin + 2, y + 4.2);
-      doc.text(`${(totalRaw*(1+pct)).toFixed(2)} m`, margin + 130, y + 4.2);
+      doc.rect(pad, y, imgMaxW, 6, 'F');
+      doc.text('TOTAL PLANTA', pad + 2, y + 4.2);
+      doc.text(`${(totalRaw*(1+marginPct)).toFixed(2)} m`, pad + 130, y + 4.2);
       y += 6;
     }
   }
@@ -2792,21 +2794,19 @@ async function doExport() {
   if (floors.length > 1) {
     doc.addPage();
     doc.setFontSize(12); doc.setFont('helvetica', 'bold');
-    doc.text('Resumen total del proyecto', margin, margin + 8);
-    let y = margin + 16;
+    doc.text('Resumen total del proyecto', pad, pad + 8);
+    let y = pad + 16;
     doc.setFontSize(9);
     floors.forEach(f => {
       if (!f.cables || f.cables.length === 0) return;
       const raw = f.cables.reduce((s,c) => s+(c.meters||0)+(c.extraDrop||0)+(c.extraSlack||0), 0);
-      const pct = (f.margin !== undefined ? f.margin : 10) / 100;
       doc.setFont('helvetica', 'normal');
-      doc.text(`${f.name}: ${(raw*(1+pct)).toFixed(2)} m`, margin + 2, y);
+      doc.text(`${f.name}: ${(raw*(1+margin)).toFixed(2)} m`, pad + 2, y);
       y += 6;
     });
     const grandRaw = floors.reduce((s,f) => s+(f.cables||[]).reduce((ss,c) => ss+(c.meters||0)+(c.extraDrop||0)+(c.extraSlack||0), 0), 0);
-    const pct = (floors[0]?.margin !== undefined ? floors[0].margin : 10) / 100;
     doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
-    doc.text(`TOTAL PROYECTO: ${(grandRaw*(1+pct)).toFixed(2)} m`, margin, y + 4);
+    doc.text(`TOTAL PROYECTO: ${(grandRaw*(1+margin)).toFixed(2)} m`, pad, y + 4);
   }
 
   statusEl.textContent = '';
