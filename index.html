@@ -792,6 +792,23 @@
     .layer-strip-btn.on-cables { opacity: 1; border-color: var(--primary); color: var(--primary); background: #eff6ff; }
     .layer-strip-btn.on-markers { opacity: 1; border-color: var(--success); color: var(--success); background: #f0fdf4; }
 
+    /* ── PANEL FLOTANTE DE COLORES ── */
+    #colorPanel {
+      position: fixed;
+      z-index: 500;
+      background: white;
+      border: 1.5px solid var(--border);
+      border-radius: 14px;
+      padding: 12px;
+      box-shadow: 0 6px 24px rgba(0,0,0,0.18);
+      display: none;
+      flex-wrap: wrap;
+      gap: 12px;
+      width: 180px;
+    }
+    #colorPanel.open { display: flex; }
+    #colorPanel .color-dot { width: 32px; height: 32px; }
+
     /* ── CANVAS mínimo visible ── */
     .canvas-wrap { min-height: 180px; }
 
@@ -1045,9 +1062,12 @@
       <p style="color:var(--muted);font-size:0.82rem;text-align:center;max-width:280px;">
         Puede ser una foto, captura de pantalla o imagen escaneada del plano de la instalación.
       </p>
-      <button class="btn btn-primary" id="btnGoCalib" disabled onclick="goStep(2)">
-        Continuar →
-      </button>
+      <div style="display:flex;gap:10px;align-items:center;">
+        <button class="btn btn-outline" id="btnCancelFloor" style="display:none;" onclick="cancelAddFloor()">← Cancelar</button>
+        <button class="btn btn-primary" id="btnGoCalib" disabled onclick="goStep(2)">
+          Continuar →
+        </button>
+      </div>
     </div>
   </div>
 
@@ -1093,16 +1113,27 @@
       </div>
     </div>
 
-    <!-- Toolbar cables: todo en una fila -->
-    <div class="toolbar" id="toolbar-cables" style="gap:6px;padding:6px 8px;">
-      <input class="cable-name-input" id="cableNameInput" placeholder="Nombre cable..." maxlength="20" style="flex:1;min-width:0;" />
+    <!-- Toolbar cables: nombre + color + trazar -->
+    <div class="toolbar" id="toolbar-cables" style="gap:6px;padding:6px 8px;position:relative;">
+      <input class="cable-name-input" id="cableNameInput" placeholder="Nombre del cable..." maxlength="20" style="flex:1;min-width:0;" />
+      <!-- Botón color: muestra el color activo, abre panel -->
+      <button id="btnColorPicker" onclick="toggleColorPanel()" title="Color del cable"
+        style="width:30px;height:30px;border-radius:50%;border:3px solid #1e293b;background:#2563eb;flex-shrink:0;cursor:pointer;padding:0;"></button>
+      <button class="btn btn-sm" id="btnToggleDraw" style="background:#fef9c3;border:1.5px solid #facc15;color:#92400e;white-space:nowrap;flex-shrink:0;" onclick="toggleDrawing()">✏️ Trazar</button>
+    </div>
+
+    <!-- Panel flotante de colores -->
+    <div id="colorPanel" style="display:none;position:absolute;z-index:500;background:white;border:1.5px solid var(--border);border-radius:12px;padding:10px;box-shadow:0 4px 20px rgba(0,0,0,0.15);display:none;flex-wrap:wrap;gap:10px;top:0;left:0;">
       <div class="color-dot selected" style="background:#2563eb" data-color="#2563eb" onclick="selectColor(this)"></div>
       <div class="color-dot" style="background:#dc2626" data-color="#dc2626" onclick="selectColor(this)"></div>
       <div class="color-dot" style="background:#16a34a" data-color="#16a34a" onclick="selectColor(this)"></div>
       <div class="color-dot" style="background:#d97706" data-color="#d97706" onclick="selectColor(this)"></div>
       <div class="color-dot" style="background:#7c3aed" data-color="#7c3aed" onclick="selectColor(this)"></div>
       <div class="color-dot" style="background:#db2777" data-color="#db2777" onclick="selectColor(this)"></div>
-      <button class="btn btn-sm" id="btnToggleDraw" style="background:#fef9c3;border:1.5px solid #facc15;color:#92400e;white-space:nowrap;flex-shrink:0;" onclick="toggleDrawing()">✏️ Trazar</button>
+      <div class="color-dot" style="background:#0891b2" data-color="#0891b2" onclick="selectColor(this)"></div>
+      <div class="color-dot" style="background:#65a30d" data-color="#65a30d" onclick="selectColor(this)"></div>
+      <div class="color-dot" style="background:#ea580c" data-color="#ea580c" onclick="selectColor(this)"></div>
+      <div class="color-dot" style="background:#1e293b" data-color="#1e293b" onclick="selectColor(this)"></div>
     </div>
 
     <!-- Toolbar marcadores: todo en una fila -->
@@ -1820,6 +1851,9 @@ function addFloor() {
   document.getElementById('fileInput').value = '';
   document.getElementById('cameraInput').value = '';
   applyFloor(floors.length - 1);
+  // Mostrar botón cancelar en paso 1
+  const cancelBtn = document.getElementById('btnCancelFloor');
+  if (cancelBtn) cancelBtn.style.display = '';
   toast(`🏢 ${newFloor.name} añadida — carga su plano`);
 }
 
@@ -2115,6 +2149,46 @@ function selectColor(el) {
   document.querySelectorAll('.color-dot').forEach(d => d.classList.remove('selected'));
   el.classList.add('selected');
   selectedColor = el.dataset.color;
+  // Actualizar el botón del color picker
+  const btn = document.getElementById('btnColorPicker');
+  if (btn) btn.style.background = selectedColor;
+  // Cerrar el panel
+  closeColorPanel();
+}
+
+function toggleColorPanel() {
+  const panel = document.getElementById('colorPanel');
+  const btn = document.getElementById('btnColorPicker');
+  if (!panel || !btn) return;
+  if (panel.classList.contains('open')) {
+    closeColorPanel();
+  } else {
+    panel.classList.add('open');
+    // Posicionar debajo del botón
+    const rect = btn.getBoundingClientRect();
+    panel.style.top = (rect.bottom + 6) + 'px';
+    panel.style.left = Math.max(8, rect.left - 60) + 'px';
+    // Cerrar al tocar fuera
+    setTimeout(() => {
+      document.addEventListener('pointerdown', closeColorPanel, { once: true, capture: true });
+    }, 0);
+  }
+}
+
+function closeColorPanel() {
+  const panel = document.getElementById('colorPanel');
+  if (panel) panel.classList.remove('open');
+}
+
+function cancelAddFloor() {
+  // Borrar la planta vacía que se acaba de añadir
+  if (floors.length > 1 && !floors[currentFloorIdx].imgSrc) {
+    floors.splice(currentFloorIdx, 1);
+  }
+  // Volver a la última planta con contenido
+  const targetIdx = Math.min(currentFloorIdx, floors.length - 1);
+  applyFloor(targetIdx);
+  document.getElementById('btnCancelFloor').style.display = 'none';
 }
 
 // ═══════════════════════════════════════════════
