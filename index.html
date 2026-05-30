@@ -1377,15 +1377,25 @@ function initCalibCanvas() {
   calibCanvas.width = wrap.clientWidth;
   calibCanvas.height = wrap.clientHeight;
 
-  // fit image
   const scaleToFit = Math.min(calibCanvas.width / imgW, calibCanvas.height / imgH);
   zoomLevel = scaleToFit;
   offsetX = (calibCanvas.width - imgW * zoomLevel) / 2;
   offsetY = (calibCanvas.height - imgH * zoomLevel) / 2;
 
   renderCalib();
-  calibCanvas.removeEventListener('pointerdown', onCalibTap);
-  calibCanvas.addEventListener('pointerdown', onCalibTap);
+
+  // Reemplazar con clon para limpiar listeners
+  const fresh = calibCanvas.cloneNode(true);
+  calibCanvas.parentNode.replaceChild(fresh, calibCanvas);
+  calibCanvas = fresh;
+  calibCtx = calibCanvas.getContext('2d');
+  setTimeout(renderCalib, 0);
+
+  calibCanvas.addEventListener('pointerdown',   onCalibPointerDown,   { passive: false });
+  calibCanvas.addEventListener('pointermove',   onCalibPointerMove,   { passive: false });
+  calibCanvas.addEventListener('pointerup',     onCalibPointerUp,     { passive: false });
+  calibCanvas.addEventListener('pointercancel', onCalibPointerCancel, { passive: false });
+  calibCanvas.addEventListener('wheel',         onCalibWheel,         { passive: false });
 }
 
 // Helpers de conversión de coordenadas
@@ -1453,6 +1463,167 @@ function onCalibTap(e) {
     document.getElementById('btnConfirmCalib').disabled = false;
   }
   renderCalib();
+}
+
+// ── Nuevo sistema de Pointer Events para calibración ─────────────
+const _cPtrs = new Map();
+let _cPinchDist = null;
+let _cTapTime = 0;
+let _cMoved = false;
+let _cLoupePos = null;   // posición de la lupa en canvas coords
+
+function onCalibPointerDown(e) {
+  e.preventDefault();
+  calibCanvas.setPointerCapture(e.pointerId);
+  _cPtrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  _cMoved = false;
+  _cLoupePos = null;
+  if (_cPtrs.size === 2) {
+    const pts = [..._cPtrs.values()];
+    _cPinchDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+  }
+}
+
+function onCalibPointerMove(e) {
+  e.preventDefault();
+  if (!_cPtrs.has(e.pointerId)) return;
+  const prev = _cPtrs.get(e.pointerId);
+  _cPtrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+  if (_cPtrs.size === 1) {
+    const dx = e.clientX - prev.x;
+    const dy = e.clientY - prev.y;
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3 || _cMoved) {
+      _cMoved = true;
+      const rect = calibCanvas.getBoundingClientRect();
+      const cx = e.clientX - rect.left;
+      const cy = e.clientY - rect.top;
+      const imgPt = toImg(cx, cy);
+
+      // Si hay un punto activo colocado (no confirmado), arrastrarlo
+      const hasActiveA = calibPhase === 'A' && calibPts.length > 0;
+      const hasActiveB = calibPhase === 'B' && calibPts.length > 1;
+
+      if (hasActiveA) {
+        calibPts[0] = imgPt;
+        _cLoupePos = { cx, cy };
+      } else if (hasActiveB) {
+        calibPts[1] = imgPt;
+        _cLoupePos = { cx, cy };
+      } else {
+        // Pan normal
+        offsetX += dx; offsetY += dy;
+      }
+      renderCalib();
+      if (_cLoupePos) drawLoupe(calibCtx, calibCanvas, _cLoupePos.cx, _cLoupePos.cy);
+    }
+  } else if (_cPtrs.size === 2) {
+    _cMoved = true;
+    _cLoupePos = null;
+    const pts = [..._cPtrs.values()];
+    const newDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+    if (_cPinchDist && newDist > 0) {
+      const factor = newDist / _cPinchDist;
+      const newZoom = Math.max(0.2, Math.min(8, zoomLevel * factor));
+      const rect = calibCanvas.getBoundingClientRect();
+      const midX = (pts[0].x + pts[1].x) / 2 - rect.left;
+      const midY = (pts[0].y + pts[1].y) / 2 - rect.top;
+      offsetX = midX - (midX - offsetX) * (newZoom / zoomLevel);
+      offsetY = midY - (midY - offsetY) * (newZoom / zoomLevel);
+      zoomLevel = newZoom;
+      renderCalib();
+    }
+    _cPinchDist = newDist;
+  }
+}
+
+function onCalibPointerUp(e) {
+  e.preventDefault();
+  const wasMoved = _cMoved;
+  _cPtrs.delete(e.pointerId);
+  if (_cPtrs.size < 2) _cPinchDist = null;
+  _cLoupePos = null;
+  renderCalib(); // quitar lupa
+
+  if (_cPtrs.size > 0) return;
+
+  if (!wasMoved) {
+    const now = Date.now();
+    if (now - _cTapTime < 300) { resetZoom(); _cTapTime = 0; return; }
+    _cTapTime = now;
+    // Tap: colocar punto
+    const rect = calibCanvas.getBoundingClientRect();
+    const cx = e.clientX - rect.left;
+    const cy = e.clientY - rect.top;
+    onCalibTap({ clientX: e.clientX, clientY: e.clientY });
+  }
+}
+
+function onCalibPointerCancel(e) {
+  _cPtrs.delete(e.pointerId);
+  if (_cPtrs.size < 2) _cPinchDist = null;
+  _cLoupePos = null;
+  renderCalib();
+}
+
+function onCalibWheel(e) {
+  e.preventDefault();
+  const rect = calibCanvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  const factor = e.deltaY < 0 ? 1.12 : 0.89;
+  const newZoom = Math.max(0.2, Math.min(8, zoomLevel * factor));
+  offsetX = mx - (mx - offsetX) * (newZoom / zoomLevel);
+  offsetY = my - (my - offsetY) * (newZoom / zoomLevel);
+  zoomLevel = newZoom;
+  renderCalib();
+}
+
+// Lupa: muestra una vista ampliada alrededor del punto de toque
+function drawLoupe(ctx, canvas, cx, cy) {
+  const LOUPE_R = 60;       // radio de la lupa en px
+  const LOUPE_ZOOM = 3;     // multiplicador de ampliación
+  const OFFSET_Y = -90;     // desplazamiento vertical (encima del dedo)
+
+  const lx = Math.min(Math.max(cx, LOUPE_R + 4), canvas.width - LOUPE_R - 4);
+  const ly = Math.min(Math.max(cy + OFFSET_Y, LOUPE_R + 4), canvas.height - LOUPE_R - 4);
+
+  // Área fuente centrada en el punto de toque
+  const srcR = LOUPE_R / LOUPE_ZOOM;
+  const sx = cx - srcR, sy = cy - srcR, sw = srcR * 2, sh = srcR * 2;
+
+  ctx.save();
+  // Círculo recortado
+  ctx.beginPath();
+  ctx.arc(lx, ly, LOUPE_R, 0, Math.PI * 2);
+  ctx.clip();
+
+  // Fondo blanco (si el canvas no cubre toda la zona)
+  ctx.fillStyle = '#fff';
+  ctx.fill();
+
+  // Imagen ampliada
+  ctx.drawImage(canvas, sx, sy, sw, sh, lx - LOUPE_R, ly - LOUPE_R, LOUPE_R * 2, LOUPE_R * 2);
+
+  ctx.restore();
+
+  // Borde de la lupa
+  ctx.beginPath();
+  ctx.arc(lx, ly, LOUPE_R, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+  ctx.lineWidth = 3;
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Cruz de precisión en el centro de la lupa
+  ctx.strokeStyle = '#ef4444';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(lx - 10, ly); ctx.lineTo(lx + 10, ly);
+  ctx.moveTo(lx, ly - 10); ctx.lineTo(lx, ly + 10);
+  ctx.stroke();
 }
 
 function lockPointA() {
@@ -2374,37 +2545,7 @@ window.addEventListener('beforeunload', e => {
   }
 });
 
-// Pinch zoom en calibración (step 2) — usa touch events
-let _calibDist = null, _calibTapTime = 0;
-document.addEventListener('touchstart', e => {
-  if (currentStep !== 2) return;
-  if (e.touches.length === 1) {
-    const now = Date.now();
-    if (now - _calibTapTime < 300) resetZoom();
-    _calibTapTime = now;
-  }
-}, { passive: true });
-document.addEventListener('touchmove', e => {
-  if (currentStep !== 2 || e.touches.length !== 2) return;
-  e.preventDefault();
-  const rect = calibCanvas.getBoundingClientRect();
-  const dist = Math.hypot(
-    e.touches[0].clientX - e.touches[1].clientX,
-    e.touches[0].clientY - e.touches[1].clientY
-  );
-  if (_calibDist) {
-    const factor = dist / _calibDist;
-    const newZoom = Math.max(0.2, Math.min(8, zoomLevel * factor));
-    const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2 - rect.left;
-    const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2 - rect.top;
-    offsetX = midX - (midX - offsetX) * (newZoom / zoomLevel);
-    offsetY = midY - (midY - offsetY) * (newZoom / zoomLevel);
-    zoomLevel = newZoom;
-    renderCalib();
-  }
-  _calibDist = dist;
-}, { passive: false });
-document.addEventListener('touchend', () => { _calibDist = null; }, { passive: true });
+// Touch events ya no se necesitan para calibración — gestionado por Pointer Events
 
 
 // ═══════════════════════════════════════════════
