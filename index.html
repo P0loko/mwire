@@ -1552,7 +1552,10 @@ const _cPtrs = new Map();
 let _cPinchDist = null;
 let _cTapTime = 0;
 let _cMoved = false;
-let _cLoupePos = null;   // posición de la lupa en canvas coords
+let _cLoupePos = null;
+let _cDragPoint = null;  // índice del punto de calibración que se está arrastrando (0, 1 o null)
+
+const CALIB_HIT_PX = 28; // radio en px de pantalla para detectar toque en un punto
 
 function onCalibPointerDown(e) {
   e.preventDefault();
@@ -1560,9 +1563,26 @@ function onCalibPointerDown(e) {
   _cPtrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
   _cMoved = false;
   _cLoupePos = null;
+  _cDragPoint = null;
+
+  // Detectar si el toque está cerca de un punto de calibración existente
+  if (_cPtrs.size === 1 && calibPts.length > 0) {
+    const rect = calibCanvas.getBoundingClientRect();
+    const cx = e.clientX - rect.left;
+    const cy = e.clientY - rect.top;
+    for (let i = 0; i < calibPts.length; i++) {
+      const c = toCvs(calibPts[i].x, calibPts[i].y);
+      if (Math.hypot(cx - c.x, cy - c.y) < CALIB_HIT_PX) {
+        _cDragPoint = i;
+        break;
+      }
+    }
+  }
+
   if (_cPtrs.size === 2) {
     const pts = [..._cPtrs.values()];
     _cPinchDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+    _cDragPoint = null;
   }
 }
 
@@ -1580,24 +1600,18 @@ function onCalibPointerMove(e) {
       const rect = calibCanvas.getBoundingClientRect();
       const cx = e.clientX - rect.left;
       const cy = e.clientY - rect.top;
-      const imgPt = toImg(cx, cy);
 
-      // Si hay un punto activo colocado (no confirmado), arrastrarlo
-      const hasActiveA = calibPhase === 'A' && calibPts.length > 0;
-      const hasActiveB = calibPhase === 'B' && calibPts.length > 1;
-
-      if (hasActiveA) {
-        calibPts[0] = imgPt;
+      if (_cDragPoint !== null && calibPts[_cDragPoint]) {
+        // Arrastrar el punto de calibración tocado
+        calibPts[_cDragPoint] = toImg(cx, cy);
         _cLoupePos = { cx, cy };
-      } else if (hasActiveB) {
-        calibPts[1] = imgPt;
-        _cLoupePos = { cx, cy };
+        renderCalib();
+        drawLoupe(calibCtx, calibCanvas, cx, cy);
       } else {
-        // Pan normal
+        // Pan normal del plano
         offsetX += dx; offsetY += dy;
+        renderCalib();
       }
-      renderCalib();
-      if (_cLoupePos) drawLoupe(calibCtx, calibCanvas, _cLoupePos.cx, _cLoupePos.cy);
     }
   } else if (_cPtrs.size === 2) {
     _cMoved = true;
@@ -1645,6 +1659,7 @@ function onCalibPointerCancel(e) {
   _cPtrs.delete(e.pointerId);
   if (_cPtrs.size < 2) _cPinchDist = null;
   _cLoupePos = null;
+  _cDragPoint = null;
   renderCalib();
 }
 
