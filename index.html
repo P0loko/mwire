@@ -849,6 +849,149 @@
     #colorPanel.open { display: flex; }
     #colorPanel .color-dot { width: 32px; height: 32px; }
 
+    /* ── MODAL RACK DESIGNER ── */
+    #rackModal {
+      position: fixed; inset: 0; z-index: 800;
+      background: #0f172a;
+      display: flex; flex-direction: column;
+      transform: translateX(100%);
+      transition: transform 0.3s cubic-bezier(.4,0,.2,1);
+    }
+    #rackModal.open { transform: translateX(0); }
+    .rack-modal-header {
+      background: #1e293b;
+      border-bottom: 1px solid #334155;
+      padding: 12px 16px;
+      display: flex; align-items: center; gap: 10px;
+      flex-shrink: 0;
+    }
+    .rack-modal-header h2 { font-size: 1rem; font-weight: 700; color: #f1f5f9; flex: 1; }
+    .btn-rack-back {
+      background: none; border: none; color: #94a3b8;
+      font-size: 0.85rem; cursor: pointer; padding: 4px 8px;
+      display: flex; align-items: center; gap: 4px;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn-rack-back:hover { color: #f1f5f9; }
+    .rack-modal-body {
+      flex: 1; display: flex; overflow: hidden;
+      background: #0f172a; color: #f1f5f9;
+    }
+    /* Panel equipos rack */
+    .rack-eq-panel {
+      width: 120px; flex-shrink: 0;
+      background: #1e293b;
+      border-right: 1px solid #334155;
+      overflow-y: auto; padding: 10px 8px;
+      display: flex; flex-direction: column; gap: 5px;
+    }
+    .rack-panel-title {
+      font-size: 0.62rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.6px; color: #64748b; margin-bottom: 4px;
+    }
+    .rack-eq-item {
+      padding: 7px 8px; border-radius: 7px;
+      border: 1.5px solid #334155;
+      cursor: grab; user-select: none; touch-action: none;
+      display: flex; align-items: center; gap: 6px;
+      font-size: 0.72rem; font-weight: 500; color: #e2e8f0;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .rack-eq-dot { width: 9px; height: 9px; border-radius: 2px; flex-shrink: 0; }
+    .rack-eq-usize { font-size: 0.6rem; color: #64748b; margin-left: auto; }
+    /* Rack visual */
+    .rack-view-area {
+      flex: 1; overflow: auto; padding: 16px;
+      display: flex; justify-content: center;
+    }
+    .rack-wrap { width: 100%; max-width: 460px; }
+    .rack-frame {
+      background: #050810;
+      border: 3px solid #334155;
+      border-radius: 7px;
+      overflow: hidden;
+      box-shadow: 0 0 0 1px #475569, 0 8px 32px rgba(0,0,0,0.5);
+    }
+    .rack-handle-bar {
+      background: linear-gradient(180deg,#334155 0%,#1e293b 100%);
+      height: 14px; display: flex; align-items: center; justify-content: center; gap: 8px;
+    }
+    .rack-handle-knob { width: 28px; height: 5px; border-radius: 3px; background: #475569; }
+    .rack-row {
+      display: flex; align-items: stretch;
+      min-height: 32px; border-bottom: 1px solid #111827; position: relative;
+    }
+    .rack-row:last-child { border-bottom: none; }
+    .rack-num {
+      width: 24px; flex-shrink: 0; font-size: 0.55rem; font-family: monospace;
+      color: #475569; background: #080c14;
+      display: flex; align-items: center; justify-content: center;
+      border-right: 1px solid #111827; user-select: none;
+    }
+    .rack-num-r {
+      width: 24px; flex-shrink: 0; font-size: 0.55rem; font-family: monospace;
+      color: #475569; background: #080c14;
+      display: flex; align-items: center; justify-content: center;
+      border-left: 1px solid #111827; user-select: none;
+    }
+    .rack-slot {
+      flex: 1; position: relative; cursor: pointer;
+      transition: background 0.1s;
+    }
+    .rack-slot.empty:hover { background: rgba(37,99,235,0.1); }
+    .rack-slot.empty::after {
+      content: '+'; position: absolute; left: 50%; top: 50%;
+      transform: translate(-50%,-50%);
+      font-size: 0.9rem; color: #1e3a5f; pointer-events: none;
+    }
+    .rack-slot.drop-ok  { background: rgba(34,197,94,0.15) !important; }
+    .rack-slot.drop-bad { background: rgba(239,68,68,0.15) !important; }
+    .rack-placed {
+      position: absolute; left: 0; right: 0; top: 0; z-index: 2;
+      display: flex; align-items: center; gap: 8px;
+      padding: 0 8px; border-radius: 2px; overflow: hidden;
+      cursor: pointer; min-height: 32px;
+    }
+    .rack-placed:hover { filter: brightness(1.15); }
+    .rack-placed-icon { font-size: 0.82rem; flex-shrink: 0; }
+    .rack-placed-label { font-size: 0.72rem; font-weight: 600; color: white; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .rack-del-btn {
+      background: none; border: none; color: rgba(255,255,255,0.4);
+      cursor: pointer; padding: 2px 4px; font-size: 0.7rem;
+      -webkit-tap-highlight-color: transparent; flex-shrink: 0;
+    }
+    .rack-del-btn:hover { color: #ef4444; }
+    /* Mini-modal equipo */
+    #rackItemModal {
+      position: fixed; inset: 0; z-index: 900;
+      background: rgba(0,0,0,0.7);
+      display: flex; align-items: center; justify-content: center; padding: 16px;
+      opacity: 0; pointer-events: none; transition: opacity 0.2s;
+    }
+    #rackItemModal.open { opacity: 1; pointer-events: all; }
+    .rack-item-box {
+      background: #1e293b; border: 1px solid #334155;
+      border-radius: 12px; padding: 20px;
+      width: min(320px,100%);
+      transform: scale(0.95); transition: transform 0.2s;
+    }
+    #rackItemModal.open .rack-item-box { transform: scale(1); }
+    .rack-item-box h3 { font-size: 0.95rem; color: #f1f5f9; margin-bottom: 14px; }
+    .rack-field { margin-bottom: 11px; }
+    .rack-field label { display: block; font-size: 0.75rem; color: #94a3b8; margin-bottom: 4px; }
+    .rack-field input, .rack-field select {
+      width: 100%; padding: 8px 10px; background: #0f172a;
+      border: 1.5px solid #334155; border-radius: 7px;
+      color: #f1f5f9; font-size: 0.85rem; outline: none;
+    }
+    .rack-field input:focus, .rack-field select:focus { border-color: #2563eb; }
+    .rack-colors { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 4px; }
+    .rack-swatch { width: 24px; height: 24px; border-radius: 5px; border: 2px solid transparent; cursor: pointer; transition: transform 0.1s; }
+    .rack-swatch.sel { border-color: white; transform: scale(1.15); }
+    .rack-modal-btns { display: flex; gap: 8px; margin-top: 14px; }
+    .rack-btn-ok { flex:1; padding:9px; border:none; border-radius:7px; background:#2563eb; color:white; font-weight:600; font-size:0.85rem; cursor:pointer; }
+    .rack-btn-cancel { flex:1; padding:9px; border:1.5px solid #334155; border-radius:7px; background:transparent; color:#f1f5f9; font-size:0.85rem; cursor:pointer; }
+
     /* ── CANVAS mínimo visible ── */
     .canvas-wrap { min-height: 180px; }
 
@@ -1037,6 +1180,13 @@
   <div class="project-list" id="projectList"></div>
 
   <!-- Sección: Acerca de (fija al fondo) -->
+  <div class="drawer-section" style="flex-shrink:0;">
+    <a href="rack.html" style="display:flex;align-items:center;gap:8px;padding:10px 0;font-size:0.85rem;color:var(--primary);text-decoration:none;font-weight:600;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="4" rx="1"/><rect x="2" y="10" width="20" height="4" rx="1"/><rect x="2" y="16" width="20" height="4" rx="1"/></svg>
+      Abrir RackWire →
+    </a>
+  </div>
+
   <div class="drawer-section" style="border-bottom:none;margin-top:auto;flex-shrink:0;">
     <button class="drawer-about-toggle" onclick="toggleAbout()">ℹ️ Acerca de MWire</button>
     <div id="aboutPanel" style="display:none;">
@@ -1322,6 +1472,54 @@
   <div class="install-actions">
     <button class="btn-install" id="btnInstall">Instalar</button>
     <button class="btn-install-dismiss" id="btnDismissInstall" title="Cerrar">✕</button>
+  </div>
+</div>
+
+<!-- ══ RACK DESIGNER MODAL ══ -->
+<div id="rackModal">
+  <div class="rack-modal-header">
+    <button class="btn-rack-back" onclick="closeRackModal()">← Volver al plano</button>
+    <h2 id="rackModalTitle">Rack</h2>
+    <button class="btn-rack-back" onclick="exportRackImage()" style="color:#2563eb;">📤</button>
+  </div>
+  <div class="rack-modal-body">
+    <div class="rack-eq-panel" id="rackEqPanel"></div>
+    <div class="rack-view-area">
+      <div class="rack-wrap">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+          <span style="font-size:0.72rem;color:#64748b;">Tamaño:</span>
+          <div id="rackSizeBtns" style="display:flex;gap:5px;flex-wrap:wrap;"></div>
+        </div>
+        <div class="rack-frame" id="rackFrame">
+          <div class="rack-handle-bar"><div class="rack-handle-knob"></div><div class="rack-handle-knob"></div></div>
+          <div id="rackRows"></div>
+          <div class="rack-handle-bar" style="transform:scaleY(-1)"><div class="rack-handle-knob"></div><div class="rack-handle-knob"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Mini-modal para configurar equipo del rack -->
+<div id="rackItemModal">
+  <div class="rack-item-box">
+    <h3 id="rackItemModalTitle">Añadir equipo</h3>
+    <div class="rack-field">
+      <label>Nombre / etiqueta</label>
+      <input type="text" id="rackItemLabel" placeholder="ej. SW-Core" maxlength="30" />
+    </div>
+    <div class="rack-field" id="rackItemSizeField">
+      <label>Tamaño (U)</label>
+      <select id="rackItemSize"></select>
+    </div>
+    <div class="rack-field">
+      <label>Color</label>
+      <div class="rack-colors" id="rackItemColors"></div>
+    </div>
+    <div class="rack-modal-btns">
+      <button class="rack-btn-cancel" onclick="closeRackItemModal()">Cancelar</button>
+      <button class="rack-btn-ok" id="rackItemOkBtn" onclick="confirmRackItem()">Añadir</button>
+    </div>
   </div>
 </div>
 
@@ -1937,7 +2135,7 @@ function renderDraw() {
   if (showMarkers) {
     markers.forEach(m => {
       const c = toCvs(m.x, m.y);
-      drawMarkerOnCanvas(drawCtx, m.type, c.x, c.y, m.name);
+      drawMarkerOnCanvas(drawCtx, m.type, c.x, c.y, m.name, m);
     });
   }
 }
@@ -1957,7 +2155,7 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-function drawMarkerOnCanvas(ctx, type, cx, cy, name) {
+function drawMarkerOnCanvas(ctx, type, cx, cy, name, marker) {
   const mt = MARKER_TYPES[type];
 
   // Medir texto para calcular ancho de la pastilla
@@ -1988,6 +2186,19 @@ function drawMarkerOnCanvas(ctx, type, cx, cy, name) {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(mt.short, cx, cy);
+
+  // Para marcadores RACK: indicador de equipos configurados
+  if (type === 'rack' && marker?.rackData?.rackItems?.length > 0) {
+    const count = marker.rackData.rackItems.length;
+    const badge = count + ' eq';
+    ctx.font = 'bold 9px sans-serif';
+    const bw2 = ctx.measureText(badge).width + 8;
+    ctx.fillStyle = '#22c55e';
+    roundRect(ctx, cx - bw2/2, by - 12, bw2, 10, 3);
+    ctx.fill();
+    ctx.fillStyle = 'white'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(badge, cx, by - 7);
+  }
 
   // Nombre debajo de la pastilla
   if (name) {
@@ -2110,6 +2321,9 @@ function onDrawPointerUp(e) {
           const idx = markers.findIndex(m => Math.hypot(m.x - imgPt.x, m.y - imgPt.y) < HIT);
           if (idx !== -1) { markers.splice(idx, 1); renderDraw(); scheduleAutoSave(); }
         } else {
+          // Si toca un marcador RACK existente → abrir diseñador
+          const tappedRack = checkRackMarkerTap(imgPt);
+          if (tappedRack) { openRackModal(tappedRack); return; }
           const mName = document.getElementById('markerNameInput').value.trim();
           if (mName && markers.some(m => m.name && m.name.toLowerCase() === mName.toLowerCase())) {
             toast(`Ya existe un marcador llamado "${mName}"`); return;
@@ -2871,6 +3085,329 @@ async function migrateFromLocalStorage() {
   } catch(e) { console.warn('Migración localStorage→IDB falló:', e); }
 }
 
+// ═══════════════════════════════════════════════
+//  RACK DESIGNER (integrado en marcadores RACK)
+// ═══════════════════════════════════════════════
+const RACK_EQ_TYPES = {
+  patchpanel: { name: 'Patch Panel', icon: '🔌', color: '#374151', defaultU: 1, minU: 1, maxU: 2 },
+  pasahilos:  { name: 'Pasahilos',   icon: '〰',  color: '#1e293b', defaultU: 1, minU: 1, maxU: 1 },
+  switch:     { name: 'Switch',      icon: '🔀', color: '#1d4ed8', defaultU: 1, minU: 1, maxU: 2 },
+  router:     { name: 'Router',      icon: '📡', color: '#0369a1', defaultU: 1, minU: 1, maxU: 1 },
+  firewall:   { name: 'Firewall',    icon: '🛡',  color: '#991b1b', defaultU: 1, minU: 1, maxU: 2 },
+  server:     { name: 'Servidor',    icon: '🖥',  color: '#4b5563', defaultU: 2, minU: 1, maxU: 4 },
+  sai:        { name: 'SAI / UPS',   icon: '🔋', color: '#78350f', defaultU: 2, minU: 2, maxU: 4 },
+  pdu:        { name: 'Regleta PDU', icon: '⚡', color: '#92400e', defaultU: 1, minU: 1, maxU: 1 },
+  blank:      { name: 'Panel Ciego', icon: '⬛', color: '#111827', defaultU: 1, minU: 1, maxU: 1 },
+};
+const RACK_COLORS = ['#374151','#1d4ed8','#0369a1','#047857','#b45309','#7c3aed','#991b1b','#78350f','#1e3a5f','#111827'];
+
+let _rackMarker = null;  // marcador RACK activo en el modal
+let _rackDrag   = null;  // estado del drag actual
+let _rackItemModalState = null;
+
+// Abre el diseñador para un marcador RACK concreto
+function openRackModal(marker) {
+  _rackMarker = marker;
+  if (!marker.rackData) marker.rackData = { rackSize: 12, rackItems: [] };
+  document.getElementById('rackModalTitle').textContent = marker.name || 'Rack';
+  buildRackSizeButtons();
+  renderRackEqPanel();
+  renderRackRows();
+  document.getElementById('rackModal').classList.add('open');
+  history.pushState({ rackOpen: true }, '');
+}
+
+function closeRackModal() {
+  document.getElementById('rackModal').classList.remove('open');
+  scheduleAutoSave();
+  renderDraw(); // actualizar plano con nuevo estado del rack
+  if (history.state?.rackOpen) history.back();
+}
+
+// Escuchar popstate para cerrar el rack modal con botón atrás
+window.addEventListener('popstate', (e) => {
+  if (document.getElementById('rackModal').classList.contains('open')) {
+    document.getElementById('rackModal').classList.remove('open');
+    scheduleAutoSave(); renderDraw();
+    // Re-push el estado normal de la app
+    history.pushState({ mwire: true }, '');
+  }
+});
+
+function getRackData() { return _rackMarker?.rackData || { rackSize: 12, rackItems: [] }; }
+
+function setRackItemsSize(n) {
+  const data = getRackData();
+  const out = data.rackItems.filter(i => i.startU + i.sizeU - 1 > n);
+  if (out.length > 0 && !confirm(`${out.length} equipo(s) quedarán fuera y se eliminarán. ¿Continuar?`)) return;
+  data.rackItems = data.rackItems.filter(i => i.startU + i.sizeU - 1 <= n);
+  data.rackSize = n;
+  buildRackSizeButtons();
+  renderRackRows();
+  scheduleAutoSave();
+}
+
+function buildRackSizeButtons() {
+  const data = getRackData();
+  const container = document.getElementById('rackSizeBtns');
+  container.innerHTML = '';
+  [6,9,12,16,18,24,42].forEach(n => {
+    const btn = document.createElement('button');
+    btn.textContent = n + 'U';
+    btn.style.cssText = `padding:3px 10px;border-radius:14px;border:1.5px solid ${data.rackSize===n?'#2563eb':'#334155'};
+      background:${data.rackSize===n?'#2563eb':'transparent'};color:${data.rackSize===n?'white':'#94a3b8'};
+      font-size:0.72rem;cursor:pointer;`;
+    btn.addEventListener('click', () => setRackItemsSize(n));
+    container.appendChild(btn);
+  });
+}
+
+function getRackOccupied() {
+  const data = getRackData();
+  const occ = new Array(data.rackSize + 1).fill(null);
+  data.rackItems.forEach(item => {
+    for (let u = item.startU; u < item.startU + item.sizeU; u++) {
+      if (u >= 1 && u <= data.rackSize) occ[u] = item;
+    }
+  });
+  return occ;
+}
+
+function canRackPlace(startU, sizeU, excludeId = null) {
+  const data = getRackData();
+  const occ = getRackOccupied();
+  for (let u = startU; u < startU + sizeU; u++) {
+    if (u < 1 || u > data.rackSize) return false;
+    if (occ[u] && occ[u].id !== excludeId) return false;
+  }
+  return true;
+}
+
+function renderRackEqPanel() {
+  const panel = document.getElementById('rackEqPanel');
+  panel.innerHTML = '<div class="rack-panel-title">Equipos</div>';
+  Object.entries(RACK_EQ_TYPES).forEach(([type, eq]) => {
+    const item = document.createElement('div');
+    item.className = 'rack-eq-item';
+    item.dataset.type = type;
+    item.innerHTML = `<div class="rack-eq-dot" style="background:${eq.color}"></div><span>${eq.name}</span>
+      <span class="rack-eq-usize">${eq.minU===eq.maxU?eq.minU+'U':eq.minU+'-'+eq.maxU+'U'}</span>`;
+    item.addEventListener('pointerdown', onRackEqPointerDown, { passive: false });
+    panel.appendChild(item);
+  });
+}
+
+function renderRackRows() {
+  const data = getRackData();
+  const container = document.getElementById('rackRows');
+  container.innerHTML = '';
+  const occ = getRackOccupied();
+  const rendered = new Set();
+
+  for (let u = 1; u <= data.rackSize; u++) {
+    const row = document.createElement('div');
+    row.className = 'rack-row'; row.dataset.u = u;
+
+    const numL = document.createElement('div'); numL.className = 'rack-num'; numL.textContent = u;
+    const slot = document.createElement('div'); slot.className = 'rack-slot'; slot.dataset.u = u;
+    const numR = document.createElement('div'); numR.className = 'rack-num-r'; numR.textContent = u;
+
+    const item = occ[u];
+    if (item && !rendered.has(item.id)) {
+      rendered.add(item.id);
+      const eq = RACK_EQ_TYPES[item.type];
+      const h = item.sizeU * 33;
+
+      const placed = document.createElement('div');
+      placed.className = 'rack-placed';
+      placed.style.cssText = `background:${item.color};height:${h}px;`;
+      placed.innerHTML = `<span class="rack-placed-icon">${eq.icon}</span>
+        <span class="rack-placed-label">${item.label || eq.name}</span>
+        <button class="rack-del-btn" data-id="${item.id}">✕</button>`;
+      placed.querySelector('.rack-del-btn').addEventListener('pointerdown', e => {
+        e.stopPropagation();
+        data.rackItems = data.rackItems.filter(i => i.id !== item.id);
+        renderRackRows(); scheduleAutoSave();
+      });
+      placed.addEventListener('click', () => openRackItemModal('edit', item, u));
+      slot.appendChild(placed);
+    } else if (!item) {
+      slot.classList.add('empty');
+      slot.addEventListener('click', () => openRackItemModal('add', null, u));
+    }
+    slot.addEventListener('pointerenter', onRackSlotEnter);
+
+    row.appendChild(numL); row.appendChild(slot); row.appendChild(numR);
+    container.appendChild(row);
+  }
+}
+
+// ── Drag desde panel de equipos ──────────────────────────────────
+function onRackEqPointerDown(e) {
+  e.preventDefault();
+  const type = e.currentTarget.dataset.type;
+  const eq = RACK_EQ_TYPES[type];
+  _rackDrag = { type, sizeU: eq.defaultU, targetU: null, valid: false };
+  document.addEventListener('pointermove', onRackDragMove, { passive: false });
+  document.addEventListener('pointerup', onRackDragEnd, { once: true });
+}
+
+function onRackDragMove(e) {
+  if (!_rackDrag) return;
+  e.preventDefault();
+}
+
+function onRackSlotEnter(e) {
+  if (!_rackDrag) return;
+  const u = parseInt(e.currentTarget.dataset.u);
+  _rackDrag.targetU = u;
+  _rackDrag.valid = canRackPlace(u, _rackDrag.sizeU);
+  document.querySelectorAll('.rack-slot').forEach(s => s.classList.remove('drop-ok','drop-bad'));
+  for (let i = 0; i < _rackDrag.sizeU; i++) {
+    const sl = document.querySelector(`.rack-slot[data-u="${u+i}"]`);
+    if (sl) sl.classList.add(_rackDrag.valid ? 'drop-ok' : 'drop-bad');
+  }
+}
+
+function onRackDragEnd() {
+  document.removeEventListener('pointermove', onRackDragMove);
+  document.querySelectorAll('.rack-slot').forEach(s => s.classList.remove('drop-ok','drop-bad'));
+  if (_rackDrag?.targetU && _rackDrag.valid) {
+    openRackItemModal('add', null, _rackDrag.targetU, _rackDrag.type, _rackDrag.sizeU);
+  }
+  _rackDrag = null;
+}
+
+// ── Mini-modal configuración equipo ─────────────────────────────
+function openRackItemModal(mode, item, u, preType, preSizeU) {
+  const type = item?.type || preType || 'patchpanel';
+  const eq = RACK_EQ_TYPES[type];
+  _rackItemModalState = { mode, u, type, editId: item?.id };
+
+  document.getElementById('rackItemModalTitle').textContent = mode === 'add' ? `Añadir equipo — U${u}` : 'Editar equipo';
+  document.getElementById('rackItemLabel').value = item?.label || '';
+  document.getElementById('rackItemOkBtn').textContent = mode === 'add' ? 'Añadir' : 'Guardar';
+
+  // Selector de tamaño
+  const sel = document.getElementById('rackItemSize');
+  sel.innerHTML = '';
+  for (let n = eq.minU; n <= eq.maxU; n++) {
+    const opt = document.createElement('option');
+    opt.value = n; opt.textContent = n + 'U';
+    if (n === (preSizeU || item?.sizeU || eq.defaultU)) opt.selected = true;
+    sel.appendChild(opt);
+  }
+  document.getElementById('rackItemSizeField').style.display = eq.minU === eq.maxU ? 'none' : '';
+
+  // Colores
+  const cc = document.getElementById('rackItemColors');
+  cc.innerHTML = '';
+  const selColor = item?.color || eq.color;
+  RACK_COLORS.forEach(c => {
+    const sw = document.createElement('div');
+    sw.className = 'rack-swatch' + (c === selColor ? ' sel' : '');
+    sw.style.background = c;
+    sw.addEventListener('click', () => { cc.querySelectorAll('.rack-swatch').forEach(s=>s.classList.remove('sel')); sw.classList.add('sel'); });
+    cc.appendChild(sw);
+  });
+
+  document.getElementById('rackItemModal').classList.add('open');
+  setTimeout(() => document.getElementById('rackItemLabel').focus(), 150);
+}
+
+function closeRackItemModal() {
+  document.getElementById('rackItemModal').classList.remove('open');
+  _rackItemModalState = null;
+}
+
+function confirmRackItem() {
+  if (!_rackItemModalState) return;
+  const data = getRackData();
+  const label = document.getElementById('rackItemLabel').value.trim();
+  const sizeU = parseInt(document.getElementById('rackItemSize').value) || 1;
+  const sel = document.querySelector('#rackItemColors .rack-swatch.sel');
+  const color = sel ? sel.style.background : RACK_COLORS[0];
+  const { mode, u, type, editId } = _rackItemModalState;
+
+  if (mode === 'add') {
+    if (!canRackPlace(u, sizeU)) { toast('No hay espacio suficiente'); return; }
+    data.rackItems.push({ id: Date.now() + '', type, label, sizeU, startU: u, color });
+  } else {
+    const item = data.rackItems.find(i => i.id === editId);
+    if (item) {
+      if (!canRackPlace(item.startU, sizeU, editId)) { toast('No hay espacio para ampliar'); return; }
+      item.label = label; item.sizeU = sizeU; item.color = color;
+    }
+  }
+  closeRackItemModal();
+  renderRackRows();
+  scheduleAutoSave();
+}
+
+// ── Exportar imagen del rack ─────────────────────────────────────
+async function exportRackImage() {
+  if (!_rackMarker) return;
+  const data = getRackData();
+  const SLOT_H = 32, NUM_W = 22, FRAME_H = 14, W = 380;
+  const H = FRAME_H * 2 + data.rackSize * (SLOT_H + 1);
+  const canvas = document.createElement('canvas');
+  const DPR = 2; canvas.width = W * DPR; canvas.height = H * DPR;
+  const ctx = canvas.getContext('2d'); ctx.scale(DPR, DPR);
+
+  ctx.fillStyle = '#050810'; ctx.fillRect(0,0,W,H);
+  ctx.fillStyle = '#334155'; ctx.fillRect(0,0,W,FRAME_H); ctx.fillRect(0,H-FRAME_H,W,FRAME_H);
+
+  const occ = getRackOccupied();
+  const rendered = new Set();
+  for (let u = 1; u <= data.rackSize; u++) {
+    const y = FRAME_H + (u-1) * (SLOT_H+1);
+    ctx.fillStyle = '#080c14';
+    ctx.fillRect(0, y, NUM_W, SLOT_H);
+    ctx.fillRect(W-NUM_W, y, NUM_W, SLOT_H);
+    ctx.fillStyle = '#475569'; ctx.font = 'bold 8px monospace';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(u, NUM_W/2, y+SLOT_H/2);
+    ctx.fillText(u, W-NUM_W/2, y+SLOT_H/2);
+    const item = occ[u];
+    if (item && !rendered.has(item.id)) {
+      rendered.add(item.id);
+      const eq = RACK_EQ_TYPES[item.type];
+      const ih = item.sizeU*(SLOT_H+1)-1;
+      ctx.fillStyle = item.color;
+      ctx.fillRect(NUM_W, y, W-NUM_W*2, ih);
+      ctx.fillStyle = 'white'; ctx.font = 'bold 11px sans-serif';
+      ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      ctx.fillText(eq.icon + ' ' + (item.label || eq.name), NUM_W+8, y+ih/2);
+    } else if (!item) {
+      ctx.fillStyle = '#0a0e1a'; ctx.fillRect(NUM_W, y, W-NUM_W*2, SLOT_H);
+    }
+    ctx.fillStyle = '#111827'; ctx.fillRect(0, y+SLOT_H, W, 1);
+  }
+  ctx.fillStyle = 'rgba(255,255,255,0.12)'; ctx.font = '9px sans-serif';
+  ctx.textAlign = 'right'; ctx.textBaseline = 'bottom';
+  ctx.fillText('RackWire © Luis Caparrós Martín', W-4, H-3);
+
+  const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
+  const name = `Rack_${(_rackMarker.name||'rack').replace(/[^a-z0-9]/gi,'_')}.png`;
+  if (navigator.share && navigator.canShare?.({ files:[new File([blob],name,{type:'image/png'})] })) {
+    try { await navigator.share({ files:[new File([blob],name,{type:'image/png'})], title:'RackWire' }); }
+    catch(e) { if (e.name!=='AbortError') downloadRackBlob(blob,name); }
+  } else { downloadRackBlob(blob,name); }
+}
+
+function downloadRackBlob(blob, name) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url; a.download=name;
+  document.body.appendChild(a); a.click();
+  setTimeout(()=>{document.body.removeChild(a);URL.revokeObjectURL(url);},1000);
+}
+
+// ── Detectar toque en marcador RACK ─────────────────────────────
+function checkRackMarkerTap(imgPt) {
+  const HIT = 28 / zoomLevel;
+  return markers.find(m => m.type === 'rack' && Math.hypot(m.x - imgPt.x, m.y - imgPt.y) < HIT);
+}
+
 // ── AUTOGUARDADO ──────────────────────────────────────────────────
 let _autoSaveTimer = null;
 
@@ -3442,6 +3979,141 @@ async function doExport() {
     const grandRaw = floors.reduce((s,f) => s+(f.cables||[]).reduce((ss,c) => ss+(c.meters||0)+(c.extraDrop||0)+(c.extraSlack||0), 0), 0);
     doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
     doc.text(`TOTAL PROYECTO: ${(grandRaw*(1+margin)).toFixed(2)} m`, pad, y + 4);
+  }
+
+  // ── Páginas de Racks ──────────────────────────────────────────
+  // Recopilar todos los marcadores RACK con datos de todos los pisos
+  const allRackMarkers = [];
+  floors.forEach(f => {
+    (f.markers || []).forEach(m => {
+      if (m.type === 'rack' && m.rackData?.rackItems?.length > 0) {
+        allRackMarkers.push({ marker: m, floorName: f.name });
+      }
+    });
+  });
+
+  for (const { marker, floorName } of allRackMarkers) {
+    doc.addPage();
+    statusEl.textContent = `Generando rack ${marker.name || 'Rack'}…`;
+    await new Promise(r => setTimeout(r, 0));
+
+    const rd = marker.rackData;
+    const rackName = marker.name || 'Rack';
+    const SLOT_H = 7, NUM_W = 8, RACK_W = imgMaxW;
+    const totalRackH = rd.rackSize * SLOT_H;
+
+    // Cabecera
+    doc.setFontSize(13); doc.setFont('helvetica', 'bold');
+    doc.setTextColor(0, 0, 0);
+    doc.text(`${rackName}`, pad, pad + 7);
+    doc.setFontSize(8); doc.setFont('helvetica', 'normal');
+    doc.setTextColor(100, 116, 139);
+    doc.text(`${floorName} · ${rd.rackSize}U · ${rd.rackItems.length} equipo(s)`, pad, pad + 13);
+    doc.setTextColor(0, 0, 0);
+
+    let ry = pad + 18;
+
+    // Marco exterior del rack
+    doc.setFillColor(8, 12, 20);
+    doc.rect(pad, ry, RACK_W, totalRackH + 4, 'F');
+
+    // Slots
+    const rackOcc = new Array(rd.rackSize + 1).fill(null);
+    rd.rackItems.forEach(item => {
+      for (let u = item.startU; u < item.startU + item.sizeU; u++) {
+        if (u >= 1 && u <= rd.rackSize) rackOcc[u] = item;
+      }
+    });
+
+    const rendered = new Set();
+    const innerX = pad + NUM_W;
+    const innerW = RACK_W - NUM_W * 2;
+
+    for (let u = 1; u <= rd.rackSize; u++) {
+      const sy = ry + 2 + (u - 1) * SLOT_H;
+
+      // Números laterales
+      doc.setFillColor(8, 12, 20);
+      doc.rect(pad, sy, NUM_W, SLOT_H, 'F');
+      doc.rect(pad + RACK_W - NUM_W, sy, NUM_W, SLOT_H, 'F');
+      doc.setFontSize(5); doc.setTextColor(100, 116, 139);
+      doc.setFont('helvetica', 'normal');
+      doc.text(String(u), pad + NUM_W / 2, sy + SLOT_H / 2 + 1, { align: 'center' });
+      doc.text(String(u), pad + RACK_W - NUM_W / 2, sy + SLOT_H / 2 + 1, { align: 'center' });
+
+      const item = rackOcc[u];
+      if (item && !rendered.has(item.id)) {
+        rendered.add(item.id);
+        const eq = RACK_EQ_TYPES[item.type];
+        const ih = item.sizeU * SLOT_H - 0.5;
+
+        // Color del equipo (convertir hex a RGB)
+        const hex = item.color.replace('#','');
+        const r = parseInt(hex.substr(0,2),16);
+        const g = parseInt(hex.substr(2,2),16);
+        const b = parseInt(hex.substr(4,2),16);
+        doc.setFillColor(r, g, b);
+        doc.rect(innerX, sy, innerW, ih, 'F');
+
+        // Borde sutil
+        doc.setDrawColor(255, 255, 255); doc.setLineWidth(0.1);
+        doc.setGState && doc.setGState(doc.GState({ opacity: 0.1 }));
+        doc.rect(innerX, sy, innerW, ih, 'S');
+
+        // Texto del equipo
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(5.5); doc.setFont('helvetica', 'bold');
+        const label = `${eq.icon} ${item.label || eq.name}`;
+        doc.text(label, innerX + 3, sy + ih / 2 + 1.5);
+
+        // Tamaño en U
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(4.5);
+        doc.setTextColor(255, 255, 255, 0.6);
+        doc.text(`${item.sizeU}U`, innerX + innerW - 6, sy + ih / 2 + 1.5);
+
+      } else if (!item) {
+        doc.setFillColor(10, 14, 26);
+        doc.rect(innerX, sy, innerW, SLOT_H, 'F');
+      }
+
+      // Línea separadora entre slots
+      doc.setDrawColor(20, 30, 50); doc.setLineWidth(0.2);
+      doc.line(innerX, sy + SLOT_H, innerX + innerW, sy + SLOT_H);
+    }
+
+    doc.setTextColor(0, 0, 0);
+
+    // Tabla de equipos del rack debajo del dibujo
+    let ty = ry + totalRackH + 10;
+    if (ty + rd.rackItems.length * 5.5 + 10 < pageH - pad) {
+      doc.setFontSize(8); doc.setFont('helvetica', 'bold');
+      doc.text('Equipos del rack', pad, ty);
+      ty += 6;
+
+      // Cabecera tabla
+      doc.setFillColor(124, 58, 237);
+      doc.rect(pad, ty, imgMaxW, 5.5, 'F');
+      doc.setTextColor(255, 255, 255); doc.setFontSize(7);
+      doc.text('U', pad + 2, ty + 3.8);
+      doc.text('Tipo', pad + 12, ty + 3.8);
+      doc.text('Nombre / Etiqueta', pad + 50, ty + 3.8);
+      doc.text('Tamaño', pad + 150, ty + 3.8);
+      ty += 5.5;
+
+      doc.setTextColor(0, 0, 0);
+      rd.rackItems.forEach((item, ci) => {
+        if (ty > pageH - pad - 8) { doc.addPage(); ty = pad + 8; }
+        const eq = RACK_EQ_TYPES[item.type];
+        doc.setFillColor(ci % 2 === 0 ? 248 : 255, ci % 2 === 0 ? 245 : 255, ci % 2 === 0 ? 255 : 255);
+        doc.rect(pad, ty, imgMaxW, 5.5, 'F');
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(7);
+        doc.text(`${item.startU}`, pad + 2, ty + 3.8);
+        doc.text(eq.name, pad + 12, ty + 3.8);
+        doc.text(item.label || '—', pad + 50, ty + 3.8);
+        doc.text(`${item.sizeU}U`, pad + 150, ty + 3.8);
+        ty += 5.5;
+      });
+    }
   }
 
   statusEl.textContent = '';
