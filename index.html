@@ -1,3 +1,9 @@
+<!--
+  MWire – Medidor de Cable UTP
+  © 2025 Luis Caparrós Martín · Luiscm80@gmail.com
+  Todos los derechos reservados.
+  Prohibida su distribución o reproducción sin autorización del autor.
+-->
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -622,6 +628,34 @@
 
     .project-list { flex: 1; overflow-y: auto; padding: 8px 0; }
 
+    /* ── ACERCA DE ── */
+    .drawer-about-toggle {
+      width: 100%; background: none; border: none; text-align: left;
+      font-size: 0.82rem; color: var(--muted); cursor: pointer; padding: 4px 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .drawer-about-toggle:hover { color: var(--primary); }
+    .about-card {
+      margin-top: 10px;
+      background: var(--bg);
+      border-radius: 10px;
+      padding: 14px;
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    .about-logo { display: flex; align-items: center; gap: 10px; }
+    .about-author {
+      display: flex; flex-direction: column; gap: 3px;
+      padding-top: 6px; border-top: 1px solid var(--border);
+    }
+    .about-link {
+      font-size: 0.82rem; color: var(--primary); text-decoration: none;
+    }
+    .about-link:hover { text-decoration: underline; }
+    .about-copy {
+      font-size: 0.72rem; color: var(--muted); line-height: 1.4;
+      padding-top: 6px; border-top: 1px solid var(--border);
+    }
+
     .project-card {
       display: flex; align-items: center; gap: 12px;
       padding: 10px 16px;
@@ -977,21 +1011,54 @@
   <!-- Sección: Proyecto actual -->
   <div class="drawer-section">
     <div class="drawer-section-title">Proyecto actual</div>
-    <div style="display:flex;gap:8px;">
+    <div style="display:flex;gap:8px;margin-bottom:8px;">
       <button class="btn btn-primary btn-sm" style="flex:1" onclick="openSaveModal()">
-        💾 Guardar proyecto
+        💾 Guardar
       </button>
       <button class="btn btn-outline btn-sm" style="flex:1" onclick="newProject()">
         ＋ Nuevo
       </button>
     </div>
+    <button class="btn btn-outline btn-sm btn-full" onclick="closeDrawer();openExportModal()">
+      📤 Exportar / Compartir PDF
+    </button>
   </div>
 
   <!-- Sección: Proyectos guardados -->
-  <div class="drawer-section" style="border-bottom:none;padding-bottom:4px;">
+  <div class="drawer-section" style="padding-bottom:4px;">
     <div class="drawer-section-title">Proyectos guardados</div>
   </div>
   <div class="project-list" id="projectList"></div>
+
+  <!-- Sección: Acerca de (fija al fondo) -->
+  <div class="drawer-section" style="border-bottom:none;margin-top:auto;flex-shrink:0;">
+    <button class="drawer-about-toggle" onclick="toggleAbout()">ℹ️ Acerca de MWire</button>
+    <div id="aboutPanel" style="display:none;">
+      <div class="about-card">
+        <div class="about-logo">
+          <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+            <rect width="32" height="32" rx="8" fill="#2563eb"/>
+            <path d="M6 24 L10 10 L16 20 L22 10 L26 24" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+            <circle cx="6" cy="24" r="2" fill="#facc15"/>
+            <circle cx="26" cy="24" r="2" fill="#facc15"/>
+          </svg>
+          <div>
+            <div style="font-weight:700;font-size:0.95rem;">MWire</div>
+            <div style="font-size:0.72rem;color:var(--muted);">Medidor de Cable UTP</div>
+          </div>
+        </div>
+        <div class="about-author">
+          <div style="font-weight:600;font-size:0.88rem;">Luis Caparrós Martín</div>
+          <a href="mailto:Luiscm80@gmail.com" class="about-link">✉️ Luiscm80@gmail.com</a>
+        </div>
+        <div class="about-copy">© 2025 Luis Caparrós Martín · Todos los derechos reservados</div>
+        <div class="about-copy" style="margin-top:4px;font-style:italic;">
+          Esta aplicación es de uso personal y profesional del autor.<br>
+          Queda prohibida su distribución o reproducción sin autorización.
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- MODAL GUARDAR PROYECTO -->
@@ -1247,6 +1314,14 @@
 </div>
 
 <script>
+// ╔═══════════════════════════════════════════════════════════════╗
+//  MWire – Medidor de Cable UTP
+//  © 2025 Luis Caparrós Martín  ·  Luiscm80@gmail.com
+//  Todos los derechos reservados.
+//  Queda prohibida la distribución, copia o reproducción total o
+//  parcial de este software sin autorización expresa del autor.
+// ╚═══════════════════════════════════════════════════════════════╝
+
 // ═══════════════════════════════════════════════
 //  ESTADO GLOBAL
 // ═══════════════════════════════════════════════
@@ -2551,6 +2626,13 @@ window.addEventListener('beforeunload', e => {
 // ═══════════════════════════════════════════════
 //  DRAWER
 // ═══════════════════════════════════════════════
+function toggleAbout() {
+  const panel = document.getElementById('aboutPanel');
+  if (!panel) return;
+  const open = panel.style.display === 'none' || panel.style.display === '';
+  panel.style.display = open ? 'block' : 'none';
+}
+
 function openDrawer() {
   document.getElementById('drawer').classList.add('open');
   document.getElementById('drawerOverlay').classList.add('open');
