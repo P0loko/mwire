@@ -725,6 +725,11 @@
     .save-modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
 
     /* ── TOAST ── */
+    @keyframes slideUp {
+      from { transform: translateY(100%); }
+      to   { transform: translateY(0); }
+    }
+
     .toast {
       position: fixed;
       bottom: calc(80px + env(safe-area-inset-bottom, 0px));
@@ -1772,6 +1777,7 @@ function confirmCalib() {
   document.getElementById('btnConfirmCalib').style.display = 'none';
   document.getElementById('btnGoDrawing').style.display = '';
   document.getElementById('step2').classList.add('done');
+  scheduleAutoSave();
 }
 
 // ═══════════════════════════════════════════════
@@ -2102,7 +2108,7 @@ function onDrawPointerUp(e) {
         if (deleteMarkerMode) {
           const HIT = 20 / zoomLevel;
           const idx = markers.findIndex(m => Math.hypot(m.x - imgPt.x, m.y - imgPt.y) < HIT);
-          if (idx !== -1) { markers.splice(idx, 1); renderDraw(); }
+          if (idx !== -1) { markers.splice(idx, 1); renderDraw(); scheduleAutoSave(); }
         } else {
           const mName = document.getElementById('markerNameInput').value.trim();
           if (mName && markers.some(m => m.name && m.name.toLowerCase() === mName.toLowerCase())) {
@@ -2111,6 +2117,7 @@ function onDrawPointerUp(e) {
           markers.push({ id: Date.now(), type: selectedMarkerType, x: imgPt.x, y: imgPt.y, name: mName });
           if (mName) document.getElementById('markerNameInput').value = autoIncrementName(mName);
           renderDraw();
+          scheduleAutoSave();
         }
       }
     }, 250);
@@ -2212,6 +2219,7 @@ function finishCable() {
 
   updateCableList();
   renderDraw();
+  scheduleAutoSave();
   toast(`✔ "${name}" añadido: ${meters.toFixed(2)} m`);
 }
 
@@ -2373,6 +2381,7 @@ function deleteCable(idx) {
   cables.splice(idx, 1);
   updateCableList();
   renderDraw();
+  scheduleAutoSave();
 }
 
 function startRenameCable(i) {
@@ -2762,8 +2771,9 @@ document.getElementById('projectNameInput')?.addEventListener('keydown', e => {
 // ═══════════════════════════════════════════════
 //  GESTIÓN DE PROYECTOS (IndexedDB — sin límite de tamaño)
 // ═══════════════════════════════════════════════
-const IDB_NAME = 'mwire_db';
-const IDB_STORE = 'projects';
+const IDB_NAME    = 'mwire_db';
+const IDB_STORE   = 'projects';
+const AUTOSAVE_ID = '__autosave__';   // clave especial para el autoguardado
 const IDB_VERSION = 1;
 let _idb = null;
 
@@ -2825,6 +2835,118 @@ async function migrateFromLocalStorage() {
   } catch(e) { console.warn('Migración localStorage→IDB falló:', e); }
 }
 
+// ── AUTOGUARDADO ──────────────────────────────────────────────────
+let _autoSaveTimer = null;
+
+function scheduleAutoSave() {
+  clearTimeout(_autoSaveTimer);
+  _autoSaveTimer = setTimeout(doAutoSave, 1500); // guarda 1.5s después del último cambio
+}
+
+async function doAutoSave() {
+  if (!img) return; // nada que guardar
+  saveCurrentFloorState();
+  const snapshot = {
+    id: AUTOSAVE_ID,
+    ts: Date.now(),
+    floors: floors.map(f => ({
+      ...f,
+      cables: f.cables.map(c => ({...c, points:[...c.points]})),
+      markers: [...f.markers],
+      calibPts: [...(f.calibPts||[])]
+    })),
+    currentFloorIdx,
+    margin: parseInt(document.getElementById('marginSlider').value)
+  };
+  try { await idbPut(snapshot); } catch(e) { /* ignorar errores de autoguardado */ }
+}
+
+async function clearAutoSave() {
+  try { await idbDelete(AUTOSAVE_ID); } catch(e) {}
+}
+
+async function checkAndRestoreAutoSave() {
+  try {
+    const db = await openIDB();
+    const snap = await new Promise(res => {
+      const tx = db.transaction(IDB_STORE, 'readonly');
+      const req = tx.objectStore(IDB_STORE).get(AUTOSAVE_ID);
+      req.onsuccess = () => res(req.result);
+      req.onerror   = () => res(null);
+    });
+    if (!snap || !snap.floors) return;
+    // Comprobar que hay algo de trabajo real
+    const hasCables  = snap.floors.some(f => f.cables  && f.cables.length  > 0);
+    const hasMarkers = snap.floors.some(f => f.markers && f.markers.length > 0);
+    if (!hasCables && !hasMarkers) return;
+
+    // Mostrar banner de recuperación
+    showRestoreBanner(snap);
+  } catch(e) {}
+}
+
+function showRestoreBanner(snap) {
+  const banner = document.createElement('div');
+  banner.id = 'restoreBanner';
+  banner.style.cssText = `
+    position:fixed;bottom:0;left:0;right:0;z-index:9999;
+    background:#1e293b;color:white;
+    padding:14px 16px;padding-bottom:max(14px,env(safe-area-inset-bottom));
+    display:flex;align-items:center;gap:10px;
+    box-shadow:0 -4px 20px rgba(0,0,0,0.3);
+    animation:slideUp 0.3s ease;
+  `;
+  const ago = Math.round((Date.now() - snap.ts) / 60000);
+  const agoText = ago < 1 ? 'hace menos de un minuto' : ago === 1 ? 'hace 1 minuto' : `hace ${ago} minutos`;
+  const totalCables = snap.floors.reduce((s,f) => s+(f.cables||[]).length, 0);
+  banner.innerHTML = `
+    <span style="flex:1;font-size:0.85rem;">
+      💾 Trabajo sin guardar recuperado (${agoText} · ${totalCables} cable${totalCables!==1?'s':''})
+    </span>
+    <button id="btnRestoreYes" style="background:#2563eb;border:none;color:white;padding:8px 14px;border-radius:8px;font-weight:600;font-size:0.82rem;cursor:pointer;">Restaurar</button>
+    <button id="btnRestoreNo"  style="background:none;border:1px solid rgba(255,255,255,0.3);color:white;padding:8px 12px;border-radius:8px;font-size:0.82rem;cursor:pointer;">Descartar</button>
+  `;
+  document.body.appendChild(banner);
+
+  document.getElementById('btnRestoreYes').onclick = async () => {
+    banner.remove();
+    restoreAutoSave(snap);
+  };
+  document.getElementById('btnRestoreNo').onclick = async () => {
+    banner.remove();
+    await clearAutoSave();
+  };
+}
+
+async function restoreAutoSave(snap) {
+  floors = snap.floors;
+  currentFloorIdx = snap.currentFloorIdx || 0;
+  if (snap.margin !== undefined) {
+    document.getElementById('marginSlider').value = snap.margin;
+    margin = snap.margin / 100;
+  }
+  const f = floors[currentFloorIdx];
+  if (!f?.imgSrc) { toast('No se pudo restaurar la imagen'); return; }
+
+  img = new Image();
+  img.onload = () => {
+    imgW = f.imgW || img.width; imgH = f.imgH || img.height;
+    scale = f.scale || null;
+    calibPts = (f.calibPts||[]).map(p=>({...p}));
+    calibPhase = f.calibPhase || 'done';
+    cables  = (f.cables||[]).map(c=>({...c, points:[...c.points]}));
+    markers = [...(f.markers||[])];
+    offsetX = f.offsetX||0; offsetY = f.offsetY||0; zoomLevel = f.zoomLevel||1;
+    document.getElementById('btnGoCalib').disabled = false;
+    document.getElementById('previewImg').src = img.src;
+    document.getElementById('previewWrap').style.display = 'block';
+    if (scale) { goStep(3); updateCableList(); }
+    else { goStep(1); }
+    toast('✔ Trabajo restaurado correctamente');
+  };
+  img.src = f.imgSrc;
+}
+
 async function saveProject() {
   if (!img) { toast('No hay ningún proyecto abierto'); closeSaveModal(); return; }
   const nameInput = document.getElementById('projectNameInput');
@@ -2851,6 +2973,7 @@ async function saveProject() {
 
   try {
     await idbPut(project);
+    await clearAutoSave(); // proyecto guardado → ya no hace falta el autosave
     closeSaveModal();
     toast(`✔ "${name}" guardado`);
   } catch(e) {
@@ -2997,6 +3120,7 @@ function doNewProject() {
   document.getElementById('step1').classList.add('active');
   updateCableList();
   closeDrawer();
+  clearAutoSave(); // nuevo proyecto = borrar autosave anterior
   // Forzar pantalla 1 directamente sin goStep (que tiene validaciones)
   document.querySelectorAll('.screen').forEach((s, i) => s.classList.toggle('active', i === 0));
   currentStep = 1;
@@ -3323,8 +3447,9 @@ function downloadPDF(blob, name) {
 //  PWA — Service Worker + Banner de instalación
 // ═══════════════════════════════════════════════
 
-// Migrar proyectos de localStorage a IndexedDB al arrancar
+// Al arrancar: migrar datos viejos y comprobar si hay trabajo sin guardar
 migrateFromLocalStorage();
+checkAndRestoreAutoSave();
 
 // ── Registrar el service worker y gestionar actualizaciones ──
 if ('serviceWorker' in navigator) {
