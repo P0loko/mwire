@@ -1123,7 +1123,7 @@
     </div>
 
     <!-- Panel flotante de colores -->
-    <div id="colorPanel" style="display:none;position:absolute;z-index:500;background:white;border:1.5px solid var(--border);border-radius:12px;padding:10px;box-shadow:0 4px 20px rgba(0,0,0,0.15);display:none;flex-wrap:wrap;gap:10px;top:0;left:0;">
+    <div id="colorPanel">
       <div class="color-dot selected" style="background:#2563eb" data-color="#2563eb" onclick="selectColor(this)"></div>
       <div class="color-dot" style="background:#dc2626" data-color="#dc2626" onclick="selectColor(this)"></div>
       <div class="color-dot" style="background:#16a34a" data-color="#16a34a" onclick="selectColor(this)"></div>
@@ -2160,14 +2160,14 @@ function toggleColorPanel() {
   const panel = document.getElementById('colorPanel');
   const btn = document.getElementById('btnColorPicker');
   if (!panel || !btn) return;
-  if (panel.classList.contains('open')) {
+  if (panel.style.display === 'flex') {
     closeColorPanel();
   } else {
-    panel.classList.add('open');
     // Posicionar debajo del botón
     const rect = btn.getBoundingClientRect();
     panel.style.top = (rect.bottom + 6) + 'px';
     panel.style.left = Math.max(8, rect.left - 60) + 'px';
+    panel.style.display = 'flex';
     // Cerrar al tocar fuera
     setTimeout(() => {
       document.addEventListener('pointerdown', closeColorPanel, { once: true, capture: true });
@@ -2177,7 +2177,7 @@ function toggleColorPanel() {
 
 function closeColorPanel() {
   const panel = document.getElementById('colorPanel');
-  if (panel) panel.classList.remove('open');
+  if (panel) panel.style.display = 'none';
 }
 
 function cancelAddFloor() {
