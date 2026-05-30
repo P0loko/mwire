@@ -2152,8 +2152,8 @@ function selectColor(el) {
   // Actualizar el botón del color picker
   const btn = document.getElementById('btnColorPicker');
   if (btn) btn.style.background = selectedColor;
-  // Cerrar el panel
-  closeColorPanel();
+  // Cerrar el panel tras seleccionar
+  setTimeout(closeColorPanel, 80);
 }
 
 function toggleColorPanel() {
@@ -2163,21 +2163,29 @@ function toggleColorPanel() {
   if (panel.style.display === 'flex') {
     closeColorPanel();
   } else {
-    // Posicionar debajo del botón
     const rect = btn.getBoundingClientRect();
     panel.style.top = (rect.bottom + 6) + 'px';
     panel.style.left = Math.max(8, rect.left - 60) + 'px';
     panel.style.display = 'flex';
-    // Cerrar al tocar fuera
+    // Cerrar solo si el toque fue FUERA del panel
     setTimeout(() => {
-      document.addEventListener('pointerdown', closeColorPanel, { once: true, capture: true });
+      document.addEventListener('pointerdown', _outsideColorPanel, { capture: true });
     }, 0);
   }
+}
+
+function _outsideColorPanel(e) {
+  const panel = document.getElementById('colorPanel');
+  // Si tocó dentro del panel, dejar que selectColor lo maneje
+  if (panel && panel.contains(e.target)) return;
+  closeColorPanel();
+  document.removeEventListener('pointerdown', _outsideColorPanel, { capture: true });
 }
 
 function closeColorPanel() {
   const panel = document.getElementById('colorPanel');
   if (panel) panel.style.display = 'none';
+  document.removeEventListener('pointerdown', _outsideColorPanel, { capture: true });
 }
 
 function cancelAddFloor() {
