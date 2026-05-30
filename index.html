@@ -739,47 +739,58 @@
     .drawing-active { background: #fef9c3 !important; border-color: #facc15 !important; }
 
     /* ── BARRA DE CAPAS ── */
-    .layer-bar {
+    /* ── BARRA SUPERIOR COMBINADA (plantas + modo) ── */
+    #topBar {
+      display: flex;
+      align-items: center;
       background: white;
       border-bottom: 1px solid var(--border);
-      padding: 4px 10px;
-      display: flex;
-      gap: 6px;
-      align-items: center;
+      flex-shrink: 0;
+      min-height: 36px;
     }
-    .layer-bar span {
-      font-size: 0.7rem;
-      color: var(--muted);
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.4px;
-      margin-right: 2px;
-    }
-    .layer-btn {
+    #floorBar {
       display: flex;
       align-items: center;
-      gap: 4px;
-      padding: 4px 10px;
-      border-radius: 12px;
-      border: 1.5px solid var(--border);
-      background: white;
-      font-size: 0.75rem;
-      font-weight: 600;
-      color: var(--muted);
+      gap: 5px;
+      padding: 5px 8px;
+      flex: 1;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    #floorBar::-webkit-scrollbar { display: none; }
+    .mode-tabs {
+      display: flex;
+      border-left: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .mode-tab {
+      padding: 0 14px;
+      height: 36px;
+      border: none;
+      background: none;
+      font-size: 1.1rem;
       cursor: pointer;
-      transition: all 0.15s;
+      opacity: 0.4;
+      transition: opacity 0.15s, background 0.15s;
       -webkit-tap-highlight-color: transparent;
     }
-    .layer-btn.active {
-      border-color: var(--primary);
-      background: #eff6ff;
-      color: var(--primary);
+    .mode-tab.active { opacity: 1; background: #eff6ff; }
+
+    /* ── LAYER BUTTONS en el strip ── */
+    .layer-strip-btn {
+      background: none;
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      padding: 3px 7px;
+      font-size: 0.75rem;
+      cursor: pointer;
+      opacity: 0.4;
+      transition: all 0.15s;
+      -webkit-tap-highlight-color: transparent;
+      flex-shrink: 0;
     }
-    .layer-btn.active-green {
-      border-color: var(--success);
-      background: #f0fdf4;
-      color: var(--success);
-    }
+    .layer-strip-btn.on-cables { opacity: 1; border-color: var(--primary); color: var(--primary); background: #eff6ff; }
+    .layer-strip-btn.on-markers { opacity: 1; border-color: var(--success); color: var(--success); background: #f0fdf4; }
 
     /* ── CANVAS mínimo visible ── */
     .canvas-wrap { min-height: 180px; }
@@ -1073,57 +1084,38 @@
   <!-- ══ SCREEN 3: TRAZAR CABLES ══ -->
   <div class="screen" id="screen3">
 
-    <!-- Selector de plantas -->
-    <div id="floorBar">
-      <!-- populated by renderFloorTabs() -->
-    </div>
-
-    <!-- Tabs -->
-    <div class="tab-bar">
-      <button class="tab active" id="tab-cables" onclick="switchTab('cables')">✏️ Cables</button>
-      <button class="tab" id="tab-markers" onclick="switchTab('markers')">📍 Marcadores</button>
-    </div>
-
-    <!-- Toolbar cables: 2 filas -->
-    <div class="toolbar" id="toolbar-cables" style="flex-wrap:wrap;gap:6px 8px;padding:8px 10px;">
-      <!-- Fila 1: nombre + botón trazar -->
-      <div style="display:flex;gap:8px;width:100%;align-items:center;">
-        <input class="cable-name-input" id="cableNameInput" placeholder="Nombre cable..." maxlength="20" style="flex:1;min-width:0;" />
-        <button class="btn btn-sm" id="btnToggleDraw" style="background:#fef9c3;border:1.5px solid #facc15;color:#92400e;white-space:nowrap;flex-shrink:0;" onclick="toggleDrawing()">✏️ Trazar</button>
-      </div>
-      <!-- Fila 2: colores -->
-      <div style="display:flex;gap:8px;align-items:center;">
-        <div class="color-dot selected" style="background:#2563eb" data-color="#2563eb" onclick="selectColor(this)"></div>
-        <div class="color-dot" style="background:#dc2626" data-color="#dc2626" onclick="selectColor(this)"></div>
-        <div class="color-dot" style="background:#16a34a" data-color="#16a34a" onclick="selectColor(this)"></div>
-        <div class="color-dot" style="background:#d97706" data-color="#d97706" onclick="selectColor(this)"></div>
-        <div class="color-dot" style="background:#7c3aed" data-color="#7c3aed" onclick="selectColor(this)"></div>
-        <div class="color-dot" style="background:#db2777" data-color="#db2777" onclick="selectColor(this)"></div>
+    <!-- Barra superior: plantas (izq) + modo cables/marcadores (der) -->
+    <div id="topBar">
+      <div id="floorBar"><!-- populated by renderFloorTabs() --></div>
+      <div class="mode-tabs">
+        <button class="mode-tab active" id="tab-cables" onclick="switchTab('cables')" title="Cables">✏️</button>
+        <button class="mode-tab" id="tab-markers" onclick="switchTab('markers')" title="Marcadores">📍</button>
       </div>
     </div>
 
-    <!-- Toolbar marcadores: 2 filas -->
-    <div class="toolbar" id="toolbar-markers" style="display:none;flex-wrap:wrap;gap:6px;padding:8px 10px;">
-      <!-- Fila 1: nombre + borrar -->
-      <div style="display:flex;gap:8px;width:100%;align-items:center;">
-        <input class="cable-name-input" id="markerNameInput" placeholder="Nombre marcador..." maxlength="20" style="flex:1;min-width:0;" />
-        <button class="btn-del-marker" id="btnDelMarker" onclick="toggleDeleteMarker()" style="flex-shrink:0;">🗑 Borrar</button>
-      </div>
-      <!-- Fila 2: tipos de marcador -->
-      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+    <!-- Toolbar cables: todo en una fila -->
+    <div class="toolbar" id="toolbar-cables" style="gap:6px;padding:6px 8px;">
+      <input class="cable-name-input" id="cableNameInput" placeholder="Nombre cable..." maxlength="20" style="flex:1;min-width:0;" />
+      <div class="color-dot selected" style="background:#2563eb" data-color="#2563eb" onclick="selectColor(this)"></div>
+      <div class="color-dot" style="background:#dc2626" data-color="#dc2626" onclick="selectColor(this)"></div>
+      <div class="color-dot" style="background:#16a34a" data-color="#16a34a" onclick="selectColor(this)"></div>
+      <div class="color-dot" style="background:#d97706" data-color="#d97706" onclick="selectColor(this)"></div>
+      <div class="color-dot" style="background:#7c3aed" data-color="#7c3aed" onclick="selectColor(this)"></div>
+      <div class="color-dot" style="background:#db2777" data-color="#db2777" onclick="selectColor(this)"></div>
+      <button class="btn btn-sm" id="btnToggleDraw" style="background:#fef9c3;border:1.5px solid #facc15;color:#92400e;white-space:nowrap;flex-shrink:0;" onclick="toggleDrawing()">✏️ Trazar</button>
+    </div>
+
+    <!-- Toolbar marcadores: todo en una fila -->
+    <div class="toolbar" id="toolbar-markers" style="display:none;gap:6px;padding:6px 8px;flex-wrap:wrap;">
+      <input class="cable-name-input" id="markerNameInput" placeholder="Nombre marcador..." maxlength="20" style="flex:1;min-width:0;" />
+      <button class="btn-del-marker" id="btnDelMarker" onclick="toggleDeleteMarker()" style="flex-shrink:0;">🗑</button>
+      <div style="display:flex;gap:5px;width:100%;overflow-x:auto;scrollbar-width:none;">
         <button class="marker-btn selected" data-mtype="data" onclick="selectMarkerType(this)"><span class="mtype-badge" style="background:#2563eb">RJ45</span><span>Toma</span></button>
         <button class="marker-btn" data-mtype="wifi"          onclick="selectMarkerType(this)"><span class="mtype-badge" style="background:#16a34a">AP</span><span>WiFi</span></button>
         <button class="marker-btn" data-mtype="rack"          onclick="selectMarkerType(this)"><span class="mtype-badge" style="background:#7c3aed">RACK</span><span>Rack</span></button>
         <button class="marker-btn" data-mtype="sw"            onclick="selectMarkerType(this)"><span class="mtype-badge" style="background:#d97706">SW</span><span>Switch</span></button>
         <button class="marker-btn" data-mtype="cam"           onclick="selectMarkerType(this)"><span class="mtype-badge" style="background:#dc2626">CAM</span><span>Cámara</span></button>
       </div>
-    </div>
-
-    <!-- Barra de capas -->
-    <div class="layer-bar">
-      <span>Capas:</span>
-      <button class="layer-btn active" id="layerBtnCables" onclick="toggleLayer('cables')">✏️ Cables</button>
-      <button class="layer-btn active-green" id="layerBtnMarkers" onclick="toggleLayer('markers')">📍 Marcadores</button>
     </div>
 
     <div class="canvas-wrap" id="drawWrap">
@@ -1136,11 +1128,13 @@
 
     <!-- Panel inferior plegable -->
     <div id="bottomDrawer">
-      <!-- Tira siempre visible: total + botón plegar -->
-      <div id="drawerStrip" onclick="toggleBottomDrawer()">
-        <span style="font-size:0.8rem;color:var(--muted);">Total cable</span>
+      <!-- Tira siempre visible: capas + total + plegar -->
+      <div id="drawerStrip">
+        <button class="layer-strip-btn on-cables" id="layerBtnCables" onclick="toggleLayer('cables')">✏️</button>
+        <button class="layer-strip-btn on-markers" id="layerBtnMarkers" onclick="toggleLayer('markers')">📍</button>
+        <span style="font-size:0.8rem;color:var(--muted);margin-left:4px;">Total</span>
         <span id="totalMeters" style="font-weight:700;color:var(--primary);font-size:1rem;">0.0 m</span>
-        <span id="drawerArrow" style="margin-left:auto;font-size:1rem;color:var(--muted);transition:transform .2s;">▲</span>
+        <span id="drawerArrow" onclick="toggleBottomDrawer()" style="margin-left:auto;font-size:1rem;color:var(--muted);transition:transform .2s;padding:4px 8px;cursor:pointer;">▲</span>
       </div>
       <!-- Contenido plegable -->
       <div id="drawerContent">
@@ -1282,6 +1276,8 @@ function goStep(n) {
     if (i + 1 < n) s.classList.add('done');
     if (i + 1 === n) s.classList.add('active');
   });
+  // Ocultar stepper en paso 3 para maximizar espacio del plano
+  document.querySelector('.stepper').style.display = n === 3 ? 'none' : '';
   if (n === 2) { setTimeout(initCalibCanvas, 60); }
   if (n === 3) { setTimeout(initDrawCanvas, 60); renderFloorTabs(); }
 }
@@ -2065,13 +2061,11 @@ function toggleLayer(layer) {
   if (layer === 'cables') {
     showCables = !showCables;
     const btn = document.getElementById('layerBtnCables');
-    btn.classList.toggle('active', showCables);
-    btn.style.opacity = showCables ? '1' : '0.45';
+    btn.classList.toggle('on-cables', showCables);
   } else {
     showMarkers = !showMarkers;
     const btn = document.getElementById('layerBtnMarkers');
-    btn.classList.toggle('active-green', showMarkers);
-    btn.style.opacity = showMarkers ? '1' : '0.45';
+    btn.classList.toggle('on-markers', showMarkers);
   }
   renderDraw();
 }
@@ -2081,8 +2075,8 @@ function switchTab(tab) {
   activeTab = tab;
   document.getElementById('tab-cables').classList.toggle('active', tab === 'cables');
   document.getElementById('tab-markers').classList.toggle('active', tab === 'markers');
-  document.getElementById('toolbar-cables').style.display = tab === 'cables' ? '' : 'none';
-  document.getElementById('toolbar-markers').style.display = tab === 'markers' ? '' : 'none';
+  document.getElementById('toolbar-cables').style.display = tab === 'cables' ? 'flex' : 'none';
+  document.getElementById('toolbar-markers').style.display = tab === 'markers' ? 'flex' : 'none';
   // Desactivar trazado si cambia de tab
   if (tab === 'markers' && drawingActive) {
     drawingActive = false;
