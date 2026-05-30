@@ -1688,6 +1688,8 @@ function onDrawPointerUp(e) {
           toast(`Ya existe un marcador llamado "${mName}"`); return;
         }
         markers.push({ id: Date.now(), type: selectedMarkerType, x: imgPt.x, y: imgPt.y, name: mName });
+        // Auto-incrementar nombre si termina en número
+        if (mName) document.getElementById('markerNameInput').value = autoIncrementName(mName);
         renderDraw();
       }
     }
@@ -1730,6 +1732,18 @@ function undoLastPoint() {
   }
 }
 
+// Incrementa el número al final del nombre: "D1"→"D2", "PL1-AP1"→"PL1-AP2"
+function autoIncrementName(name) {
+  const m = name.match(/^(.*?)(\d+)$/);
+  if (!m) return name;
+  const prefix = m[1];
+  const num = parseInt(m[2], 10);
+  // Mantener ceros: "D01"→"D02", pero "D9"→"D10"
+  const next = String(num + 1);
+  const padded = m[2].length > next.length ? next.padStart(m[2].length, '0') : next;
+  return prefix + padded;
+}
+
 function finishCable() {
   if (currentPoints.length < 2) { toast('Necesitas al menos 2 puntos'); return; }
 
@@ -1755,7 +1769,8 @@ function finishCable() {
   drawingActive = false;
   document.getElementById('btnToggleDraw').textContent = '✏️ Trazar';
   document.getElementById('btnToggleDraw').style.background = '#fef9c3';
-  nameInput.value = '';
+  // Auto-incrementar nombre si termina en número
+  nameInput.value = autoIncrementName(name);
 
   updateCableList();
   renderDraw();
