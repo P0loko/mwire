@@ -1992,17 +1992,19 @@ function updateCableList() {
   }
 
   list.innerHTML = cables.map((c, i) => {
-    const total = cableTotal(c);
+    const raw = cableTotal(c);
+    const withMargin = raw * (1 + margin);
     const hasExtras = c.extraDrop > 0 || c.extraSlack > 0;
-    const breakdown = hasExtras
-      ? `<div class="extra-breakdown">${c.meters.toFixed(2)} m medido + ${(c.extraDrop||0).toFixed(1)} bajada + ${(c.extraSlack||0).toFixed(1)} coca = ${total.toFixed(2)} m</div>`
+    const marginPct = Math.round(margin * 100);
+    const breakdown = (hasExtras || margin > 0)
+      ? `<div class="extra-breakdown">${c.meters.toFixed(2)} m medido${hasExtras ? ` + ${(c.extraDrop||0).toFixed(1)} bajada + ${(c.extraSlack||0).toFixed(1)} coca` : ''}${margin > 0 ? ` + ${marginPct}%` : ''} = ${withMargin.toFixed(2)} m</div>`
       : '';
     return `
     <li class="cable-item" id="cable-item-${i}">
       <div class="cable-row">
         <span class="cable-color" style="background:${c.color}"></span>
         <span class="cable-name" id="cable-name-${i}">${c.name}</span>
-        <span class="cable-meters" id="cable-meters-${i}">${total.toFixed(2)} m</span>
+        <span class="cable-meters" id="cable-meters-${i}">${withMargin.toFixed(2)} m</span>
         <button class="cable-rename" onclick="startRenameCable(${i})" title="Renombrar">✏️</button>
         <button class="cable-expand${hasExtras ? ' open' : ''}" id="expand-btn-${i}" onclick="toggleExtras(${i})" title="Metros extra">▾</button>
         <button class="cable-del" onclick="deleteCable(${i})">✕</button>
@@ -2037,18 +2039,21 @@ function toggleExtras(i) {
 
 function updateCableExtras(i, field, value) {
   cables[i][field] = Math.max(0, parseFloat(value) || 0);
-  // Actualizar solo el total mostrado y el desglose sin rerenderizar toda la lista
-  const total = cableTotal(cables[i]);
-  const row = document.querySelector(`#cable-item-${i} .cable-meters`);
-  if (row) row.textContent = total.toFixed(2) + ' m';
   const c = cables[i];
+  const raw = cableTotal(c);
+  const withMargin = raw * (1 + margin);
+  const marginPct = Math.round(margin * 100);
   const hasExtras = c.extraDrop > 0 || c.extraSlack > 0;
-  const bdEl = document.querySelector(`#extras-${i} .extra-breakdown`);
-  const bdText = hasExtras
-    ? `${c.meters.toFixed(2)} m medido + ${(c.extraDrop||0).toFixed(1)} bajada + ${(c.extraSlack||0).toFixed(1)} coca = ${total.toFixed(2)} m`
+  // Actualizar total mostrado con margen
+  const row = document.querySelector(`#cable-item-${i} .cable-meters`);
+  if (row) row.textContent = withMargin.toFixed(2) + ' m';
+  // Actualizar desglose
+  const bdText = (hasExtras || margin > 0)
+    ? `${c.meters.toFixed(2)} m medido${hasExtras ? ` + ${(c.extraDrop||0).toFixed(1)} bajada + ${(c.extraSlack||0).toFixed(1)} coca` : ''}${margin > 0 ? ` + ${marginPct}%` : ''} = ${withMargin.toFixed(2)} m`
     : '';
-  if (bdEl) { bdEl.textContent = bdText; }
-  else if (hasExtras) {
+  const bdEl = document.querySelector(`#extras-${i} .extra-breakdown`);
+  if (bdEl) { bdEl.textContent = bdText; if (!bdText) bdEl.remove(); }
+  else if (bdText) {
     const div = document.createElement('div');
     div.className = 'extra-breakdown';
     div.textContent = bdText;
@@ -2085,6 +2090,27 @@ function applyGlobalCoca() {
 function updateMargin() {
   margin = parseInt(document.getElementById('marginSlider').value) / 100;
   document.getElementById('marginLabel').textContent = `+${Math.round(margin * 100)}%`;
+
+  // Actualizar cada cable con el nuevo margen
+  cables.forEach((c, i) => {
+    const withMargin = cableTotal(c) * (1 + margin);
+    const row = document.querySelector(`#cable-item-${i} .cable-meters`);
+    if (row) row.textContent = withMargin.toFixed(2) + ' m';
+    // Actualizar desglose si está visible
+    const hasExtras = c.extraDrop > 0 || c.extraSlack > 0;
+    const bdEl = document.querySelector(`#extras-${i} .extra-breakdown`);
+    if (hasExtras || margin > 0) {
+      const marginPct = Math.round(margin * 100);
+      const bdText = `${c.meters.toFixed(2)} m medido${hasExtras ? ` + ${(c.extraDrop||0).toFixed(1)} bajada + ${(c.extraSlack||0).toFixed(1)} coca` : ''}${margin > 0 ? ` + ${marginPct}%` : ''} = ${withMargin.toFixed(2)} m`;
+      if (bdEl) bdEl.textContent = bdText;
+      else if (document.getElementById(`extras-${i}`)?.classList.contains('open')) {
+        const div = document.createElement('div');
+        div.className = 'extra-breakdown';
+        div.textContent = bdText;
+        document.getElementById(`extras-${i}`).appendChild(div);
+      }
+    } else if (bdEl) { bdEl.remove(); }
+  });
 
   const base = cables.reduce((s, c) => s + cableTotal(c), 0);
   const total = base * (1 + margin);
