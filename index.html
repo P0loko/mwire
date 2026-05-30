@@ -2727,6 +2727,42 @@ window.addEventListener('beforeunload', e => {
   }
 });
 
+// ── Botón Atrás de Android (PWA) ────────────────────────────────
+// Mantenemos siempre un estado en el historial para que el back button
+// dispare 'popstate' en lugar de cerrar la app.
+history.pushState({ mwire: true }, '');
+
+window.addEventListener('popstate', () => {
+  // Reinyectar estado para que el próximo back también lo capture
+  history.pushState({ mwire: true }, '');
+
+  // Prioridad: cerrar lo que esté abierto antes de retroceder pasos
+  if (document.getElementById('exportModal')?.classList.contains('open')) {
+    closeExportModal(); return;
+  }
+  if (document.getElementById('saveModal')?.classList.contains('open')) {
+    closeSaveModal(); return;
+  }
+  if (document.getElementById('drawer')?.classList.contains('open')) {
+    closeDrawer(); return;
+  }
+  if (document.getElementById('colorPanel')?.style.display === 'flex') {
+    closeColorPanel(); return;
+  }
+  // Si está trazando un cable, cancelar el trazado
+  if (drawingActive) {
+    drawingActive = false;
+    currentPoints = [];
+    const btn = document.getElementById('btnToggleDraw');
+    if (btn) { btn.textContent = '✏️ Trazar'; btn.style.background = '#fef9c3'; }
+    renderDraw(); return;
+  }
+  // Retroceder un paso si estamos en paso 2 ó 3
+  if (currentStep === 3) { goStep(2); return; }
+  if (currentStep === 2) { goStep(1); return; }
+  // Paso 1: no hacer nada (la app se queda abierta)
+});
+
 // Touch events ya no se necesitan para calibración — gestionado por Pointer Events
 
 
