@@ -1813,24 +1813,92 @@ function renderDraw() {
   drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
   drawCtx.drawImage(img, offsetX, offsetY, imgW * zoomLevel, imgH * zoomLevel);
 
-  // Cables guardados (puntos en espacio imagen → convertir a canvas)
-  if (!showCables) { /* capa cables oculta */ }
-  else cables.forEach(cable => {
-    if (cable.points.length < 2) return;
-    const c0 = toCvs(cable.points[0].x, cable.points[0].y);
-    drawCtx.beginPath();
-    drawCtx.moveTo(c0.x, c0.y);
-    cable.points.forEach(p => { const c = toCvs(p.x, p.y); drawCtx.lineTo(c.x, c.y); });
-    drawCtx.strokeStyle = cable.color;
-    drawCtx.lineWidth = 3;
-    drawCtx.lineJoin = 'round';
-    drawCtx.lineCap = 'round';
-    drawCtx.stroke();
-    // etiqueta
-    drawCtx.fillStyle = cable.color;
-    drawCtx.font = 'bold 11px sans-serif';
-    drawCtx.fillText(cable.name, c0.x + 6, c0.y - 6);
-  });
+  // Cables guardados
+  if (showCables) {
+    // Paso 1: dibujar solo las líneas
+    cables.forEach(cable => {
+      if (cable.points.length < 2) return;
+      const c0 = toCvs(cable.points[0].x, cable.points[0].y);
+      drawCtx.beginPath();
+      drawCtx.moveTo(c0.x, c0.y);
+      cable.points.forEach(p => { const c = toCvs(p.x, p.y); drawCtx.lineTo(c.x, c.y); });
+      drawCtx.strokeStyle = cable.color;
+      drawCtx.lineWidth = 3;
+      drawCtx.lineJoin = 'round';
+      drawCtx.lineCap = 'round';
+      drawCtx.stroke();
+    });
+
+    // Paso 2: dibujar etiquetas con detección de colisiones
+    const placedRects = [];
+    const FS = 11, PAD_X = 5, PAD_Y = 3;
+    drawCtx.font = `bold ${FS}px sans-serif`;
+
+    cables.forEach(cable => {
+      if (cable.points.length < 2 || !cable.name) return;
+      // Punto medio del cable (canvas coords)
+      const mid = cable.points[Math.floor(cable.points.length / 2)];
+      const anchor = toCvs(mid.x, mid.y);
+      const tw = drawCtx.measureText(cable.name).width;
+      const lw = tw + PAD_X * 2, lh = FS + PAD_Y * 2;
+
+      // Candidatos de posición: alrededor del punto medio
+      const gap = 8;
+      const candidates = [
+        { dx:  0,         dy: -(lh/2 + gap) },   // arriba
+        { dx:  0,         dy:  (lh/2 + gap) },   // abajo
+        { dx:  (lw/2+gap),dy:  0            },   // derecha
+        { dx: -(lw/2+gap),dy:  0            },   // izquierda
+        { dx:  (lw/2+gap),dy: -(lh/2 + gap) },   // arriba-dcha
+        { dx: -(lw/2+gap),dy: -(lh/2 + gap) },   // arriba-izq
+        { dx:  (lw/2+gap),dy:  (lh/2 + gap) },   // abajo-dcha
+        { dx: -(lw/2+gap),dy:  (lh/2 + gap) },   // abajo-izq
+        { dx:  0,         dy: -(lh + gap*3) },   // muy arriba
+        { dx:  0,         dy:  (lh + gap*3) },   // muy abajo
+      ];
+
+      let chosen = candidates[0];
+      for (const cand of candidates) {
+        const rx = anchor.x + cand.dx - lw/2;
+        const ry = anchor.y + cand.dy - lh/2;
+        const noOverlap = !placedRects.some(r =>
+          rx < r.x + r.w && rx + lw > r.x && ry < r.y + r.h && ry + lh > r.y
+        );
+        if (noOverlap) { chosen = cand; break; }
+      }
+
+      const lx = anchor.x + chosen.dx;
+      const ly = anchor.y + chosen.dy;
+      placedRects.push({ x: lx - lw/2, y: ly - lh/2, w: lw, h: lh });
+
+      // Línea guía si la etiqueta se desplazó
+      const dist = Math.hypot(chosen.dx, chosen.dy);
+      if (dist > 4) {
+        drawCtx.beginPath();
+        drawCtx.moveTo(anchor.x, anchor.y);
+        drawCtx.lineTo(lx, ly);
+        drawCtx.strokeStyle = cable.color;
+        drawCtx.lineWidth = 1;
+        drawCtx.globalAlpha = 0.45;
+        drawCtx.setLineDash([3, 3]);
+        drawCtx.stroke();
+        drawCtx.setLineDash([]);
+        drawCtx.globalAlpha = 1;
+      }
+
+      // Fondo blanco semitransparente
+      drawCtx.fillStyle = 'rgba(255,255,255,0.88)';
+      drawCtx.fillRect(lx - lw/2, ly - lh/2, lw, lh);
+      // Texto
+      drawCtx.fillStyle = cable.color;
+      drawCtx.textAlign = 'center';
+      drawCtx.textBaseline = 'middle';
+      drawCtx.fillText(cable.name, lx, ly);
+    });
+
+    drawCtx.textAlign = 'left';
+    drawCtx.textBaseline = 'alphabetic';
+  }
 
   // Cable en curso (puntos en espacio imagen → convertir a canvas)
   if (currentPoints.length > 0) {
