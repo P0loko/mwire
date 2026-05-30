@@ -413,18 +413,6 @@
     .cable-rename:hover { opacity: 1; }
 
     /* ── FLOOR BAR ── */
-    #floorBar {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      padding: 6px 10px;
-      background: white;
-      border-bottom: 1px solid var(--border);
-      overflow-x: auto;
-      scrollbar-width: none;
-      flex-shrink: 0;
-    }
-    #floorBar::-webkit-scrollbar { display: none; }
     .floor-tab {
       display: inline-flex;
       align-items: center;
@@ -770,7 +758,7 @@
     .fab-red { background: var(--danger); color: white; }
     .fab-green { background: var(--success); color: white; }
 
-    .drawing-active { background: #fef9c3 !important; border-color: #facc15 !important; }
+    /* .drawing-active eliminada — se gestiona con estilos inline en JS */
 
     /* ── BARRA DE CAPAS ── */
     /* ── BARRA SUPERIOR COMBINADA (plantas + modo) ── */
@@ -1478,7 +1466,7 @@ function toImg(cx, cy)    { return { x: (cx - offsetX) / zoomLevel, y: (cy - off
 function toCvs(ix, iy)    { return { x: ix * zoomLevel + offsetX,   y: iy * zoomLevel + offsetY   }; }
 
 function renderCalib() {
-  if (!calibCtx) return;
+  if (!calibCtx || !img) return;
   calibCtx.clearRect(0, 0, calibCanvas.width, calibCanvas.height);
   calibCtx.drawImage(img, offsetX, offsetY, imgW * zoomLevel, imgH * zoomLevel);
 
@@ -1738,6 +1726,7 @@ function confirmCalib() {
   const dx = calibPts[1].x - calibPts[0].x;
   const dy = calibPts[1].y - calibPts[0].y;
   const pixelDist = Math.sqrt(dx * dx + dy * dy);
+  if (pixelDist < 1) { toast('Los dos puntos están demasiado juntos — sepáralos más'); return; }
   scale = dist / pixelDist;
   calibPhase = 'done';
   floors[currentFloorIdx].scale = scale;
@@ -1786,7 +1775,7 @@ function initDrawCanvas() {
 }
 
 function renderDraw() {
-  if (!drawCtx) return;
+  if (!drawCtx || !img) return;
   drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
   drawCtx.drawImage(img, offsetX, offsetY, imgW * zoomLevel, imgH * zoomLevel);
 
@@ -2160,6 +2149,9 @@ function applyFloor(idx) {
   markers = [...(f.markers || [])];
   offsetX = f.offsetX || 0; offsetY = f.offsetY || 0; zoomLevel = f.zoomLevel || 1;
   currentPoints = []; drawingActive = false;
+  // Cancelar tap pendiente para evitar añadir puntos a la planta equivocada
+  if (_tapTimer) { clearTimeout(_tapTimer); _tapTimer = null; }
+  _ptrs.clear(); _pinchDist = null;
   const btn = document.getElementById('btnToggleDraw');
   if (btn) { btn.textContent = '✏️ Trazar'; btn.style.background = '#fef9c3'; }
 
@@ -2467,8 +2459,12 @@ function updateMargin() {
   const gtRow = document.getElementById('grandTotalRow');
   if (gtRow) {
     if (floors.length > 1) {
-      saveCurrentFloorState();
-      const grandBase = floors.reduce((sum, f) => sum + (f.cables||[]).reduce((s, c) => s + cableTotal(c), 0), 0);
+      // Calcular total de plantas usando cables actuales en memoria para la planta activa
+      // y datos guardados para el resto (sin llamar saveCurrentFloorState que puede corromper estado)
+      const grandBase = floors.reduce((sum, f, idx) => {
+        const cbs = idx === currentFloorIdx ? cables : (f.cables || []);
+        return sum + cbs.reduce((s, c) => s + cableTotal(c), 0);
+      }, 0);
       const grandTotal = grandBase * (1 + margin);
       document.getElementById('grandTotalMeters').textContent = `${grandTotal.toFixed(2)} m`;
       gtRow.style.display = 'flex';
@@ -2662,48 +2658,101 @@ document.getElementById('projectNameInput')?.addEventListener('keydown', e => {
 });
 
 // ═══════════════════════════════════════════════
-//  GESTIÓN DE PROYECTOS (localStorage)
+//  GESTIÓN DE PROYECTOS (IndexedDB — sin límite de tamaño)
 // ═══════════════════════════════════════════════
-const STORAGE_KEY = 'mwire_projects';
+const IDB_NAME = 'mwire_db';
+const IDB_STORE = 'projects';
+const IDB_VERSION = 1;
+let _idb = null;
 
-function getProjects() {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
-  catch { return []; }
-}
-function setProjects(list) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+function openIDB() {
+  return new Promise((resolve, reject) => {
+    if (_idb) { resolve(_idb); return; }
+    const req = indexedDB.open(IDB_NAME, IDB_VERSION);
+    req.onupgradeneeded = e => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains(IDB_STORE)) {
+        db.createObjectStore(IDB_STORE, { keyPath: 'id' });
+      }
+    };
+    req.onsuccess = e => { _idb = e.target.result; resolve(_idb); };
+    req.onerror   = e => reject(e.target.error);
+  });
 }
 
-function saveProject() {
+async function idbGetAll() {
+  const db = await openIDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE, 'readonly');
+    const req = tx.objectStore(IDB_STORE).getAll();
+    req.onsuccess = () => resolve(req.result.sort((a,b) => b.id - a.id));
+    req.onerror   = e => reject(e.target.error);
+  });
+}
+
+async function idbPut(project) {
+  const db = await openIDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE, 'readwrite');
+    tx.objectStore(IDB_STORE).put(project);
+    tx.oncomplete = resolve;
+    tx.onerror    = e => reject(e.target.error);
+  });
+}
+
+async function idbDelete(id) {
+  const db = await openIDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE, 'readwrite');
+    tx.objectStore(IDB_STORE).delete(id);
+    tx.oncomplete = resolve;
+    tx.onerror    = e => reject(e.target.error);
+  });
+}
+
+// Compatibilidad: migrar proyectos de localStorage a IndexedDB (una sola vez)
+async function migrateFromLocalStorage() {
+  const LS_KEY = 'mwire_projects';
+  const old = localStorage.getItem(LS_KEY);
+  if (!old) return;
+  try {
+    const list = JSON.parse(old);
+    for (const p of list) await idbPut(p);
+    localStorage.removeItem(LS_KEY);
+    console.log(`MWire: migrados ${list.length} proyectos a IndexedDB`);
+  } catch(e) { console.warn('Migración localStorage→IDB falló:', e); }
+}
+
+async function saveProject() {
   if (!img) { toast('No hay ningún proyecto abierto'); closeSaveModal(); return; }
   const nameInput = document.getElementById('projectNameInput');
   const name = nameInput.value.trim() || `Proyecto ${new Date().toLocaleDateString('es-ES')}`;
 
-  // Guardar estado de la planta activa antes de serializar
+  // Guardar estado de la planta activa
   saveCurrentFloorState();
 
-  // Generar miniatura de la imagen (pequeña para no saturar localStorage)
   const thumb = generateThumb(img, 120, 90);
-
   const project = {
     id: Date.now(),
     name,
     date: new Date().toLocaleDateString('es-ES', { day:'2-digit', month:'short', year:'numeric' }),
     thumb,
-    floors: floors.map(f => ({...f, cables: f.cables.map(c => ({...c, points:[...c.points]})), markers:[...f.markers], calibPts:[...(f.calibPts||[])]})),
+    floors: floors.map(f => ({
+      ...f,
+      cables: f.cables.map(c => ({...c, points:[...c.points]})),
+      markers: [...f.markers],
+      calibPts: [...(f.calibPts||[])]
+    })),
     currentFloorIdx,
     margin: parseInt(document.getElementById('marginSlider').value)
   };
 
-  const list = getProjects();
-  list.unshift(project); // más reciente primero
   try {
-    setProjects(list);
+    await idbPut(project);
     closeSaveModal();
     toast(`✔ "${name}" guardado`);
   } catch(e) {
-    // Si localStorage está lleno, avisar
-    toast('Sin espacio — borra proyectos antiguos');
+    toast('Error al guardar: ' + (e.message || e));
   }
 }
 
@@ -2721,10 +2770,15 @@ function generateThumb(imgEl, w, h) {
   return c.toDataURL('image/jpeg', 0.6);
 }
 
-function loadProject(id) {
-  const list = getProjects();
-  const p = list.find(x => x.id === id);
-  if (!p) return;
+async function loadProject(id) {
+  const db = await openIDB();
+  const p = await new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE, 'readonly');
+    const req = tx.objectStore(IDB_STORE).get(id);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror   = e => reject(e.target.error);
+  });
+  if (!p) { toast('Proyecto no encontrado'); return; }
 
   // Compatibilidad: formato antiguo (sin floors) → convertir a floors
   if (p.floors) {
@@ -2778,12 +2832,22 @@ function loadProject(id) {
   img.src = f.imgSrc;
 }
 
-function deleteProject(id, e) {
+let _pendingDeleteProject = null;
+let _pendingDeleteProjectTimer = null;
+async function deleteProject(id, e) {
   e.stopPropagation();
-  const list = getProjects().filter(x => x.id !== id);
-  setProjects(list);
-  renderProjectList();
-  toast('Proyecto eliminado');
+  if (_pendingDeleteProject === id) {
+    clearTimeout(_pendingDeleteProjectTimer);
+    _pendingDeleteProject = null;
+    await idbDelete(id);
+    renderProjectList();
+    toast('Proyecto eliminado');
+  } else {
+    _pendingDeleteProject = id;
+    clearTimeout(_pendingDeleteProjectTimer);
+    toast('¿Eliminar proyecto? Pulsa 🗑 de nuevo para confirmar');
+    _pendingDeleteProjectTimer = setTimeout(() => { _pendingDeleteProject = null; }, 3000);
+  }
 }
 
 function newProject() {
@@ -2849,23 +2913,26 @@ function showDrawerConfirm(title, subtitle, onConfirm) {
     <p style="font-weight:600;font-size:0.9rem;margin-bottom:4px;">${title}</p>
     <p style="font-size:0.8rem;color:var(--muted);margin-bottom:12px;">${subtitle}</p>
     <div style="display:flex;gap:8px;">
-      <button class="btn btn-outline btn-sm" style="flex:1" onclick="document.getElementById('drawerConfirm').remove()">Cancelar</button>
-      <button class="btn btn-danger btn-sm" style="flex:1" onclick="document.getElementById('drawerConfirm').remove();(${onConfirm.name})()">Continuar</button>
+      <button class="btn btn-outline btn-sm" style="flex:1" id="drawerConfirmCancel">Cancelar</button>
+      <button class="btn btn-danger btn-sm" style="flex:1" id="drawerConfirmOk">Continuar</button>
     </div>`;
+  box.querySelector('#drawerConfirmCancel').addEventListener('click', () => box.remove());
+  box.querySelector('#drawerConfirmOk').addEventListener('click', () => { box.remove(); onConfirm(); });
 
   // Insertar después de la sección de proyecto actual
   const section = document.querySelector('.drawer-section');
   section.after(box);
 }
 
-function renderProjectList() {
-  const list = getProjects();
+async function renderProjectList() {
   const container = document.getElementById('projectList');
+  container.innerHTML = '<div style="padding:16px;color:var(--muted);font-size:0.82rem;">Cargando…</div>';
+  const list = await idbGetAll();
   if (list.length === 0) {
     container.innerHTML = `
       <div class="project-empty">
         Aún no tienes proyectos guardados.<br>
-        Pulsa <strong>Guardar proyecto</strong> para conservar tu trabajo.
+        Pulsa <strong>Guardar</strong> para conservar tu trabajo.
       </div>`;
     return;
   }
@@ -2972,11 +3039,7 @@ function renderFloorToCanvas(floorData, exCables, exMarkers) {
       }
 
       if (exMarkers && floorData.markers) {
-        const MARKER_TYPES = {
-          data:{short:'RJ45',color:'#2563eb'}, wifi:{short:'AP',color:'#16a34a'},
-          rack:{short:'RACK',color:'#7c3aed'}, sw:{short:'SW',color:'#d97706'},
-          cam:{short:'CAM',color:'#dc2626'}
-        };
+        // Usa la constante global MARKER_TYPES para que nuevos tipos se reflejen aquí también
         const fs = Math.max(12, W / 80);
         floorData.markers.forEach(m => {
           const mt = MARKER_TYPES[m.type] || MARKER_TYPES.data;
@@ -2986,7 +3049,8 @@ function renderFloorToCanvas(floorData, exCables, exMarkers) {
           const bx = m.x - bw / 2, by = m.y - bh / 2;
           ctx.fillStyle = mt.color;
           ctx.beginPath();
-          ctx.roundRect(bx, by, bw, bh, fs * 0.3);
+          // Usa el helper roundRect para compatibilidad con Safari antiguo
+          roundRect(ctx, bx, by, bw, bh, fs * 0.3);
           ctx.fill();
           ctx.fillStyle = 'white';
           ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -3013,6 +3077,7 @@ async function doExport() {
   btn.disabled = true;
   statusEl.textContent = 'Preparando PDF…';
 
+  try {
   // Guardar estado de la planta activa
   saveCurrentFloorState();
 
@@ -3135,6 +3200,12 @@ async function doExport() {
     downloadPDF(pdfBlob, fileName);
     closeExportModal();
   }
+  } catch(err) {
+    // Error general del proceso de exportación
+    statusEl.textContent = 'Error al generar PDF: ' + (err.message || err);
+    btn.disabled = false;
+    console.error('doExport error:', err);
+  }
 }
 
 function downloadPDF(blob, name) {
@@ -3149,6 +3220,9 @@ function downloadPDF(blob, name) {
 // ═══════════════════════════════════════════════
 //  PWA — Service Worker + Banner de instalación
 // ═══════════════════════════════════════════════
+
+// Migrar proyectos de localStorage a IndexedDB al arrancar
+migrateFromLocalStorage();
 
 // ── Registrar el service worker y gestionar actualizaciones ──
 if ('serviceWorker' in navigator) {
