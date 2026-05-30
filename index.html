@@ -1006,6 +1006,29 @@
   </div>
 </div>
 
+<!-- MODAL EXPORTAR -->
+<div class="save-modal" id="exportModal">
+  <div class="save-modal-box">
+    <h3>📤 Exportar / Compartir</h3>
+    <p style="font-size:0.82rem;color:var(--muted);margin-bottom:14px;">Genera un PDF con el plano y la lista de cables.</p>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px;">
+      <label style="display:flex;align-items:center;gap:8px;font-size:0.88rem;">
+        <input type="checkbox" id="exportChkCables" checked style="width:16px;height:16px;" />
+        Mostrar cables
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;font-size:0.88rem;">
+        <input type="checkbox" id="exportChkMarkers" checked style="width:16px;height:16px;" />
+        Mostrar marcadores
+      </label>
+    </div>
+    <div id="exportStatus" style="font-size:0.82rem;color:var(--muted);min-height:18px;margin-bottom:10px;"></div>
+    <div class="save-modal-actions">
+      <button class="btn btn-outline btn-sm" onclick="closeExportModal()">Cancelar</button>
+      <button class="btn btn-primary btn-sm" id="btnDoExport" onclick="doExport()">📄 Generar PDF</button>
+    </div>
+  </div>
+</div>
+
 <!-- STEPPER -->
 <div class="stepper">
   <div class="step active" id="step1" onclick="goStep(1)">
@@ -1165,7 +1188,8 @@
         <button class="layer-strip-btn on-markers" id="layerBtnMarkers" onclick="toggleLayer('markers')">📍</button>
         <span style="font-size:0.8rem;color:var(--muted);margin-left:4px;">Total</span>
         <span id="totalMeters" style="font-weight:700;color:var(--primary);font-size:1rem;">0.0 m</span>
-        <span id="drawerArrow" onclick="toggleBottomDrawer()" style="margin-left:auto;font-size:1rem;color:var(--muted);transition:transform .2s;padding:4px 8px;cursor:pointer;">▲</span>
+        <button onclick="openExportModal()" style="margin-left:auto;background:none;border:none;font-size:1.2rem;cursor:pointer;padding:4px 6px;" title="Exportar / Compartir">📤</button>
+        <span id="drawerArrow" onclick="toggleBottomDrawer()" style="font-size:1rem;color:var(--muted);transition:transform .2s;padding:4px 8px;cursor:pointer;">▲</span>
       </div>
       <!-- Contenido plegable -->
       <div id="drawerContent">
@@ -2592,6 +2616,226 @@ function totalMetersForProject(p) {
     base = p.cables.reduce((s, c) => s + (c.meters||0) + (c.extraDrop||0) + (c.extraSlack||0), 0);
   } else return '';
   return (base * (1 + m)).toFixed(1) + ' m';
+}
+
+// ═══════════════════════════════════════════════
+//  EXPORTAR / COMPARTIR
+// ═══════════════════════════════════════════════
+function openExportModal() {
+  if (!img) { toast('No hay ningún proyecto abierto'); return; }
+  document.getElementById('exportModal').classList.add('open');
+  document.getElementById('exportStatus').textContent = '';
+}
+function closeExportModal() {
+  document.getElementById('exportModal').classList.remove('open');
+}
+
+// Renderiza un floor a un canvas independiente (sin zoom/pan)
+function renderFloorToCanvas(floorData, exCables, exMarkers) {
+  const fImg = new Image();
+  return new Promise(resolve => {
+    fImg.onload = () => {
+      const W = fImg.width, H = fImg.height;
+      const c = document.createElement('canvas');
+      c.width = W; c.height = H;
+      const ctx = c.getContext('2d');
+      ctx.drawImage(fImg, 0, 0, W, H);
+
+      if (exCables && floorData.cables) {
+        floorData.cables.forEach(cable => {
+          if (!cable.points || cable.points.length < 2) return;
+          ctx.beginPath();
+          ctx.moveTo(cable.points[0].x, cable.points[0].y);
+          for (let k = 1; k < cable.points.length; k++) {
+            ctx.lineTo(cable.points[k].x, cable.points[k].y);
+          }
+          ctx.strokeStyle = cable.color || '#2563eb';
+          ctx.lineWidth = Math.max(2, W / 400);
+          ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+          ctx.stroke();
+          // Punto inicio/fin
+          [cable.points[0], cable.points[cable.points.length - 1]].forEach(pt => {
+            ctx.beginPath();
+            ctx.arc(pt.x, pt.y, Math.max(4, W / 200), 0, Math.PI * 2);
+            ctx.fillStyle = cable.color || '#2563eb';
+            ctx.fill();
+          });
+        });
+      }
+
+      if (exMarkers && floorData.markers) {
+        const MARKER_TYPES = {
+          data:{short:'RJ45',color:'#2563eb'}, wifi:{short:'AP',color:'#16a34a'},
+          rack:{short:'RACK',color:'#7c3aed'}, sw:{short:'SW',color:'#d97706'},
+          cam:{short:'CAM',color:'#dc2626'}
+        };
+        const fs = Math.max(12, W / 80);
+        floorData.markers.forEach(m => {
+          const mt = MARKER_TYPES[m.type] || MARKER_TYPES.data;
+          ctx.font = `bold ${fs}px sans-serif`;
+          const tw = ctx.measureText(mt.short).width;
+          const bw = tw + fs, bh = fs * 1.6;
+          const bx = m.x - bw / 2, by = m.y - bh / 2;
+          ctx.fillStyle = mt.color;
+          ctx.beginPath();
+          ctx.roundRect(bx, by, bw, bh, fs * 0.3);
+          ctx.fill();
+          ctx.fillStyle = 'white';
+          ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.fillText(mt.short, m.x, m.y);
+          if (m.name) {
+            ctx.font = `bold ${fs * 0.8}px sans-serif`;
+            ctx.fillStyle = mt.color;
+            ctx.fillText(m.name, m.x, by + bh + fs * 0.9);
+          }
+        });
+      }
+      resolve(c);
+    };
+    fImg.src = floorData.imgSrc;
+  });
+}
+
+async function doExport() {
+  const exCables  = document.getElementById('exportChkCables').checked;
+  const exMarkers = document.getElementById('exportChkMarkers').checked;
+  const statusEl  = document.getElementById('exportStatus');
+  const btn       = document.getElementById('btnDoExport');
+
+  btn.disabled = true;
+  statusEl.textContent = 'Preparando PDF…';
+
+  // Guardar estado de la planta activa
+  saveCurrentFloorState();
+
+  // Cargar jsPDF dinámicamente
+  if (!window.jspdf) {
+    await new Promise((res, rej) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+      s.onload = res; s.onerror = rej;
+      document.head.appendChild(s);
+    });
+  }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const pageW = 210, pageH = 297, margin = 10;
+  const imgMaxW = pageW - margin * 2;
+
+  for (let fi = 0; fi < floors.length; fi++) {
+    const f = floors[fi];
+    if (!f.imgSrc) continue;
+    if (fi > 0) doc.addPage();
+
+    statusEl.textContent = `Generando ${f.name}… (${fi+1}/${floors.length})`;
+    await new Promise(r => setTimeout(r, 0)); // yield UI
+
+    // Título de planta
+    doc.setFontSize(14); doc.setFont('helvetica', 'bold');
+    doc.text(f.name, margin, margin + 6);
+
+    // Renderizar canvas
+    const canvas = await renderFloorToCanvas(f, exCables, exMarkers);
+    const imgData = canvas.toDataURL('image/jpeg', 0.88);
+
+    // Calcular tamaño proporcional
+    const ratio = canvas.height / canvas.width;
+    const drawW = imgMaxW;
+    const drawH = Math.min(drawW * ratio, pageH - margin * 2 - 30);
+    const imgY = margin + 12;
+    doc.addImage(imgData, 'JPEG', margin, imgY, drawW, drawH);
+
+    // Tabla de cables
+    let y = imgY + drawH + 8;
+    if (f.cables && f.cables.length > 0) {
+      doc.setFontSize(9); doc.setFont('helvetica', 'bold');
+      doc.setFillColor(37, 99, 235);
+      doc.setTextColor(255, 255, 255);
+      doc.rect(margin, y, imgMaxW, 6, 'F');
+      doc.text('Cable', margin + 2, y + 4.2);
+      doc.text('Medido', margin + 60, y + 4.2);
+      doc.text('Extras', margin + 90, y + 4.2);
+      doc.text(`Con margen (${Math.round(f.margin||0)||Math.round(margin*100)}%)`, margin + 130, y + 4.2);
+      y += 6;
+
+      doc.setTextColor(0, 0, 0);
+      f.cables.forEach((cable, ci) => {
+        if (y > pageH - margin - 8) { doc.addPage(); y = margin + 6; }
+        const raw = (cable.meters||0) + (cable.extraDrop||0) + (cable.extraSlack||0);
+        const pct = (f.margin !== undefined ? f.margin : Math.round(margin * 100)) / 100;
+        const withM = raw * (1 + pct);
+        doc.setFillColor(ci % 2 === 0 ? 248 : 255, ci % 2 === 0 ? 250 : 255, ci % 2 === 0 ? 252 : 255);
+        doc.rect(margin, y, imgMaxW, 5.5, 'F');
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(8);
+        doc.text(cable.name || `Cable ${ci+1}`, margin + 2, y + 3.8);
+        doc.text(`${(cable.meters||0).toFixed(2)} m`, margin + 60, y + 3.8);
+        const extras = (cable.extraDrop||0) + (cable.extraSlack||0);
+        doc.text(extras > 0 ? `+${extras.toFixed(1)} m` : '—', margin + 90, y + 3.8);
+        doc.text(`${withM.toFixed(2)} m`, margin + 130, y + 3.8);
+        y += 5.5;
+      });
+
+      // Total de la planta
+      const totalRaw = f.cables.reduce((s, c) => s + (c.meters||0)+(c.extraDrop||0)+(c.extraSlack||0), 0);
+      const pct = (f.margin !== undefined ? f.margin : Math.round(margin * 100)) / 100;
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(9);
+      doc.setFillColor(219, 234, 254);
+      doc.rect(margin, y, imgMaxW, 6, 'F');
+      doc.text('TOTAL PLANTA', margin + 2, y + 4.2);
+      doc.text(`${(totalRaw*(1+pct)).toFixed(2)} m`, margin + 130, y + 4.2);
+      y += 6;
+    }
+  }
+
+  // Total global si hay varias plantas
+  if (floors.length > 1) {
+    doc.addPage();
+    doc.setFontSize(12); doc.setFont('helvetica', 'bold');
+    doc.text('Resumen total del proyecto', margin, margin + 8);
+    let y = margin + 16;
+    doc.setFontSize(9);
+    floors.forEach(f => {
+      if (!f.cables || f.cables.length === 0) return;
+      const raw = f.cables.reduce((s,c) => s+(c.meters||0)+(c.extraDrop||0)+(c.extraSlack||0), 0);
+      const pct = (f.margin !== undefined ? f.margin : 10) / 100;
+      doc.setFont('helvetica', 'normal');
+      doc.text(`${f.name}: ${(raw*(1+pct)).toFixed(2)} m`, margin + 2, y);
+      y += 6;
+    });
+    const grandRaw = floors.reduce((s,f) => s+(f.cables||[]).reduce((ss,c) => ss+(c.meters||0)+(c.extraDrop||0)+(c.extraSlack||0), 0), 0);
+    const pct = (floors[0]?.margin !== undefined ? floors[0].margin : 10) / 100;
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
+    doc.text(`TOTAL PROYECTO: ${(grandRaw*(1+pct)).toFixed(2)} m`, margin, y + 4);
+  }
+
+  statusEl.textContent = '';
+  btn.disabled = false;
+
+  // Compartir o descargar
+  const projectName = floors.length > 0 ? (floors[0].name || 'MWire') : 'MWire';
+  const fileName = `MWire_${projectName.replace(/[^a-z0-9]/gi,'_')}.pdf`;
+  const pdfBlob = doc.output('blob');
+
+  if (navigator.share && navigator.canShare && navigator.canShare({ files: [new File([pdfBlob], fileName, { type: 'application/pdf' })] })) {
+    const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
+    closeExportModal();
+    try {
+      await navigator.share({ files: [file], title: 'MWire – Medición de cables' });
+    } catch(e) { if (e.name !== 'AbortError') downloadPDF(pdfBlob, fileName); }
+  } else {
+    downloadPDF(pdfBlob, fileName);
+    closeExportModal();
+  }
+}
+
+function downloadPDF(blob, name) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
 }
 
 // ═══════════════════════════════════════════════
