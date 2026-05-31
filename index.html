@@ -874,19 +874,20 @@
     }
     .btn-rack-back:hover { color: #f1f5f9; }
     .rack-modal-body {
-      flex: 1; display: flex; overflow: hidden;
+      flex: 1; position: relative;
       background: #0f172a; color: #f1f5f9;
-      min-height: 0; /* sin esto el flex hijo se expande al contenido y no hay scroll */
+      min-height: 0;
     }
     /* Panel equipos rack */
     .rack-eq-panel {
-      width: 120px; flex-shrink: 0;
+      position: absolute; top: 0; left: 0; bottom: 0;
+      width: 120px;
       background: #1e293b;
       border-right: 1px solid #334155;
       overflow-y: auto; padding: 10px 8px;
       display: flex; flex-direction: column; gap: 5px;
       touch-action: pan-y;
-      min-height: 0;
+      -webkit-overflow-scrolling: touch;
     }
     .rack-panel-title {
       font-size: 0.62rem; font-weight: 700; text-transform: uppercase;
@@ -917,10 +918,10 @@
     .rack-eq-usize { font-size: 0.6rem; color: #64748b; margin-left: auto; }
     /* Rack visual */
     .rack-view-area {
-      flex: 1; overflow: auto; padding: 16px;
-      display: flex; justify-content: center; align-items: flex-start;
-      touch-action: auto;
-      min-height: 0;          /* evita que flex expanda el hijo al contenido */
+      position: absolute; top: 0; right: 0; bottom: 0; left: 120px;
+      overflow-y: auto; overflow-x: hidden;
+      padding: 16px;
+      touch-action: pan-y;
       -webkit-overflow-scrolling: touch;
     }
     .rack-wrap { width: 100%; max-width: 460px; }
