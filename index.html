@@ -876,6 +876,7 @@
     .rack-modal-body {
       flex: 1; display: flex; overflow: hidden;
       background: #0f172a; color: #f1f5f9;
+      min-height: 0; /* sin esto el flex hijo se expande al contenido y no hay scroll */
     }
     /* Panel equipos rack */
     .rack-eq-panel {
@@ -885,6 +886,7 @@
       overflow-y: auto; padding: 10px 8px;
       display: flex; flex-direction: column; gap: 5px;
       touch-action: pan-y;
+      min-height: 0;
     }
     .rack-panel-title {
       font-size: 0.62rem; font-weight: 700; text-transform: uppercase;
