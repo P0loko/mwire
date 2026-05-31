@@ -724,35 +724,40 @@
     .save-modal-box input:focus { border-color: var(--primary); }
     .save-modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
 
-    /* ── MODAL CÁMARA ── */
+    /* ── PANEL CÁMARA (barra inferior sin overlay) ── */
     #camModal {
-      position: fixed; inset: 0; z-index: 700;
-      background: rgba(0,0,0,0.5);
-      display: flex; align-items: flex-end; justify-content: center;
-      opacity: 0; pointer-events: none; transition: opacity 0.2s;
+      position: fixed; bottom: 0; left: 0; right: 0; z-index: 700;
+      transform: translateY(100%);
+      transition: transform 0.25s cubic-bezier(0.4,0,0.2,1);
+      pointer-events: none;
     }
-    #camModal.open { opacity: 1; pointer-events: all; }
+    #camModal.open { transform: translateY(0); pointer-events: all; }
     .cam-box {
-      background: white; border-radius: 16px 16px 0 0;
-      padding: 20px 16px;
-      padding-bottom: max(20px, env(safe-area-inset-bottom));
-      width: 100%; max-width: 480px;
-      box-shadow: 0 -4px 24px rgba(0,0,0,0.15);
+      background: white;
+      border-top: 2px solid #dc2626;
+      padding: 12px 16px;
+      padding-bottom: max(12px, env(safe-area-inset-bottom));
+      box-shadow: 0 -4px 20px rgba(0,0,0,0.12);
     }
     .cam-type-btn {
-      flex: 1; padding: 9px 8px; border-radius: 8px;
+      flex: 1; padding: 7px 6px; border-radius: 8px;
       border: 1.5px solid var(--border); background: white;
-      font-size: 0.85rem; font-weight: 600; cursor: pointer;
+      font-size: 0.82rem; font-weight: 600; cursor: pointer;
       color: var(--muted); transition: all 0.15s;
     }
     .cam-type-btn.active { background: #fef2f2; border-color: #dc2626; color: #dc2626; }
-    .cam-slider-row { margin-bottom: 14px; }
+    .cam-slider-row { margin-bottom: 10px; }
     .cam-slider-row label {
       display: flex; justify-content: space-between;
-      font-size: 0.82rem; color: var(--muted); margin-bottom: 5px;
+      font-size: 0.78rem; color: var(--muted); margin-bottom: 3px;
     }
     .cam-slider-row label strong { color: var(--text); }
     .cam-slider-row input[type=range] { width: 100%; accent-color: #dc2626; }
+    /* Flecha de dirección */
+    #camDirArrow {
+      display: inline-block; font-size: 1.3rem; line-height: 1;
+      transition: transform 0.1s; color: #dc2626;
+    }
 
     /* ── TOAST ── */
     @keyframes slideUp {
@@ -1521,42 +1526,38 @@
   </div>
 </div>
 
-<!-- MODAL CONFIGURACIÓN CÁMARA -->
+<!-- PANEL CONFIGURACIÓN CÁMARA -->
 <div id="camModal">
   <div class="cam-box">
-    <div style="display:flex;align-items:center;margin-bottom:14px;">
-      <h3 style="font-size:0.95rem;font-weight:700;flex:1;">📷 Configurar cámara</h3>
-      <button onclick="closeCamModal()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--muted);line-height:1;">✕</button>
+    <!-- Fila 1: tipo + nombre + cerrar -->
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+      <button id="btnCamCone" class="cam-type-btn active" onclick="setCamModalType('cone')" style="flex:none;padding:6px 10px;">🔺 Cono</button>
+      <button id="btnCam360"  class="cam-type-btn"        onclick="setCamModalType('360')"  style="flex:none;padding:6px 10px;">⭕ 360°</button>
+      <input type="text" id="camNameInput" placeholder="Nombre cámara…" maxlength="20"
+        style="flex:1;padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:0.85rem;outline:none;min-width:0;" />
+      <button onclick="confirmCamModal()" style="flex:none;padding:6px 14px;border:none;border-radius:8px;background:#dc2626;color:white;font-weight:700;font-size:0.85rem;cursor:pointer;">OK</button>
+      <button onclick="closeCamModal()" style="flex:none;background:none;border:none;font-size:1.2rem;cursor:pointer;color:var(--muted);line-height:1;">✕</button>
     </div>
-    <!-- Nombre -->
-    <div class="cam-slider-row" style="margin-bottom:14px;">
-      <label>Nombre / etiqueta <strong></strong></label>
-      <input type="text" id="camNameInput" placeholder="ej. Entrada principal" maxlength="20"
-        style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:0.9rem;outline:none;" />
+    <!-- Fila 2: dirección (solo cono) -->
+    <div id="camAngleRow" style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+      <span id="camDirArrow">→</span>
+      <span style="font-size:0.75rem;color:var(--muted);flex:1;">Arrastra en el plano para apuntar</span>
+      <strong id="camAngleVal" style="font-size:0.82rem;color:#dc2626;min-width:36px;text-align:right;">0°</strong>
     </div>
-    <!-- Toggle tipo -->
-    <div style="display:flex;gap:8px;margin-bottom:16px;">
-      <button id="btnCamCone" class="cam-type-btn active" onclick="setCamModalType('cone')">🔺 Cono</button>
-      <button id="btnCam360"  class="cam-type-btn"        onclick="setCamModalType('360')">⭕ 360°</button>
-    </div>
-    <!-- Dirección (solo cono) -->
-    <div class="cam-slider-row" id="camAngleRow">
-      <label>Dirección <strong id="camAngleVal">0°</strong></label>
-      <input type="range" id="camAngleSlider" min="0" max="359" value="0" oninput="updateCamPreview()" />
-    </div>
-    <!-- Apertura (solo cono) -->
-    <div class="cam-slider-row" id="camSpreadRow">
-      <label>Ángulo de visión <strong id="camSpreadVal">90°</strong></label>
-      <input type="range" id="camSpreadSlider" min="10" max="180" value="90" oninput="updateCamPreview()" />
-    </div>
-    <!-- Alcance -->
-    <div class="cam-slider-row">
-      <label>Alcance <strong id="camRangeVal">10 m</strong></label>
-      <input type="range" id="camRangeSlider" min="1" max="50" value="10" oninput="updateCamPreview()" />
-    </div>
-    <div style="display:flex;gap:8px;margin-top:4px;">
-      <button onclick="closeCamModal()" style="flex:1;padding:10px;border:1.5px solid var(--border);border-radius:8px;background:white;font-size:0.88rem;cursor:pointer;">Cancelar</button>
-      <button onclick="confirmCamModal()" style="flex:1;padding:10px;border:none;border-radius:8px;background:#dc2626;color:white;font-weight:600;font-size:0.88rem;cursor:pointer;">Guardar</button>
+    <!-- Fila 3: apertura + alcance -->
+    <div style="display:flex;gap:12px;align-items:center;">
+      <div id="camSpreadRow" style="flex:1;">
+        <div style="display:flex;justify-content:space-between;font-size:0.72rem;color:var(--muted);margin-bottom:2px;">
+          <span>Apertura</span><strong id="camSpreadVal">90°</strong>
+        </div>
+        <input type="range" id="camSpreadSlider" min="10" max="180" value="90" oninput="updateCamPreview()" style="width:100%;accent-color:#dc2626;" />
+      </div>
+      <div style="flex:1;">
+        <div style="display:flex;justify-content:space-between;font-size:0.72rem;color:var(--muted);margin-bottom:2px;">
+          <span>Alcance</span><strong id="camRangeVal">10 m</strong>
+        </div>
+        <input type="range" id="camRangeSlider" min="1" max="50" value="10" oninput="updateCamPreview()" style="width:100%;accent-color:#dc2626;" />
+      </div>
     </div>
   </div>
 </div>
@@ -2393,6 +2394,13 @@ const PAN_THRESHOLD = 4;   // px mínimos para considerar movimiento
 
 function onDrawPointerDown(e) {
   e.preventDefault();
+  // Si el panel de cámara está abierto y es un dedo → apuntar
+  if (_camModalMarker && _camModalMarker.camType === 'cone' && _ptrs.size === 0) {
+    drawCanvas.setPointerCapture(e.pointerId);
+    _ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    _moved = false;
+    return; // el movimiento lo gestiona onDrawPointerMove con la comprobación _camModalMarker
+  }
   drawCanvas.setPointerCapture(e.pointerId);
   _ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
   _moved = false;
@@ -2407,6 +2415,13 @@ function onDrawPointerDown(e) {
 function onDrawPointerMove(e) {
   e.preventDefault();
   if (!_ptrs.has(e.pointerId)) return;
+  // Modo apuntado de cámara: actualizar ángulo en tiempo real
+  if (_camModalMarker && _camModalMarker.camType === 'cone') {
+    _ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    _moved = true;
+    setCamAngleFromCanvas(e.clientX, e.clientY);
+    return;
+  }
   const prev = _ptrs.get(e.pointerId);
   _ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
@@ -3806,6 +3821,13 @@ function checkCamMarkerTap(imgPt) {
 // ── Modal configuración cámara ───────────────────────────────────
 let _camModalMarker = null;
 
+function _updateCamArrow(angle) {
+  const el = document.getElementById('camDirArrow');
+  if (el) el.style.transform = `rotate(${angle}deg)`;
+  const val = document.getElementById('camAngleVal');
+  if (val) val.textContent = Math.round(angle) + '°';
+}
+
 function openCamModal(marker) {
   _camModalMarker = marker;
   if (!marker.camType)   marker.camType   = 'cone';
@@ -3815,8 +3837,7 @@ function openCamModal(marker) {
 
   document.getElementById('camNameInput').value = marker.name || '';
   setCamModalType(marker.camType, false);
-  document.getElementById('camAngleSlider').value  = marker.camAngle;
-  document.getElementById('camAngleVal').textContent = marker.camAngle + '°';
+  _updateCamArrow(marker.camAngle);
   document.getElementById('camSpreadSlider').value = marker.camSpread;
   document.getElementById('camSpreadVal').textContent = marker.camSpread + '°';
   const r = Math.min(50, Math.max(1, Math.round(marker.camRange)));
@@ -3826,7 +3847,6 @@ function openCamModal(marker) {
 }
 
 function closeCamModal() {
-  // Revertir preview al estado guardado (si cancelamos)
   if (_camModalMarker) { renderDraw(); }
   document.getElementById('camModal').classList.remove('open');
   _camModalMarker = null;
@@ -3841,15 +3861,28 @@ function setCamModalType(type, preview = true) {
   if (_camModalMarker) { _camModalMarker.camType = type; if (preview) renderDraw(); }
 }
 
+// Llamado desde el drag en el canvas cuando el panel de cámara está abierto
+function setCamAngleFromCanvas(clientX, clientY) {
+  if (!_camModalMarker) return;
+  const rect = drawCanvas.getBoundingClientRect();
+  const camCvs = toCvs(_camModalMarker.x, _camModalMarker.y);
+  const dx = clientX - rect.left - camCvs.x / (window.devicePixelRatio || 1);
+  const dy = clientY - rect.top  - camCvs.y / (window.devicePixelRatio || 1);
+  if (Math.hypot(dx, dy) < 8) return; // ignorar toques justo encima del marcador
+  // atan2 da 0=derecha, luego convertimos: 0°=derecha, 90°=abajo
+  let angle = Math.atan2(dy, dx) * 180 / Math.PI;
+  if (angle < 0) angle += 360;
+  _camModalMarker.camAngle = Math.round(angle);
+  _updateCamArrow(_camModalMarker.camAngle);
+  renderDraw();
+}
+
 function updateCamPreview() {
   if (!_camModalMarker) return;
-  const angle  = parseInt(document.getElementById('camAngleSlider').value);
   const spread = parseInt(document.getElementById('camSpreadSlider').value);
   const range  = parseInt(document.getElementById('camRangeSlider').value);
-  document.getElementById('camAngleVal').textContent  = angle + '°';
   document.getElementById('camSpreadVal').textContent = spread + '°';
   document.getElementById('camRangeVal').textContent  = range + ' m';
-  _camModalMarker.camAngle  = angle;
   _camModalMarker.camSpread = spread;
   _camModalMarker.camRange  = range;
   renderDraw();
@@ -3858,7 +3891,6 @@ function updateCamPreview() {
 function confirmCamModal() {
   if (!_camModalMarker) return;
   _camModalMarker.name      = document.getElementById('camNameInput').value.trim();
-  _camModalMarker.camAngle  = parseInt(document.getElementById('camAngleSlider').value);
   _camModalMarker.camSpread = parseInt(document.getElementById('camSpreadSlider').value);
   _camModalMarker.camRange  = parseInt(document.getElementById('camRangeSlider').value);
   document.getElementById('camModal').classList.remove('open');
