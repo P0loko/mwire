@@ -724,6 +724,36 @@
     .save-modal-box input:focus { border-color: var(--primary); }
     .save-modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
 
+    /* ── MODAL CÁMARA ── */
+    #camModal {
+      position: fixed; inset: 0; z-index: 700;
+      background: rgba(0,0,0,0.5);
+      display: flex; align-items: flex-end; justify-content: center;
+      opacity: 0; pointer-events: none; transition: opacity 0.2s;
+    }
+    #camModal.open { opacity: 1; pointer-events: all; }
+    .cam-box {
+      background: white; border-radius: 16px 16px 0 0;
+      padding: 20px 16px;
+      padding-bottom: max(20px, env(safe-area-inset-bottom));
+      width: 100%; max-width: 480px;
+      box-shadow: 0 -4px 24px rgba(0,0,0,0.15);
+    }
+    .cam-type-btn {
+      flex: 1; padding: 9px 8px; border-radius: 8px;
+      border: 1.5px solid var(--border); background: white;
+      font-size: 0.85rem; font-weight: 600; cursor: pointer;
+      color: var(--muted); transition: all 0.15s;
+    }
+    .cam-type-btn.active { background: #fef2f2; border-color: #dc2626; color: #dc2626; }
+    .cam-slider-row { margin-bottom: 14px; }
+    .cam-slider-row label {
+      display: flex; justify-content: space-between;
+      font-size: 0.82rem; color: var(--muted); margin-bottom: 5px;
+    }
+    .cam-slider-row label strong { color: var(--text); }
+    .cam-slider-row input[type=range] { width: 100%; accent-color: #dc2626; }
+
     /* ── TOAST ── */
     @keyframes slideUp {
       from { transform: translateY(100%); }
@@ -1411,7 +1441,6 @@
         <button class="marker-btn selected" data-mtype="data" onclick="selectMarkerType(this)"><span class="mtype-badge" style="background:#2563eb">RJ45</span><span>Toma</span></button>
         <button class="marker-btn" data-mtype="wifi"          onclick="selectMarkerType(this)"><span class="mtype-badge" style="background:#16a34a">AP</span><span>WiFi</span></button>
         <button class="marker-btn" data-mtype="rack"          onclick="selectMarkerType(this)"><span class="mtype-badge" style="background:#7c3aed">RACK</span><span>Rack</span></button>
-        <button class="marker-btn" data-mtype="sw"            onclick="selectMarkerType(this)"><span class="mtype-badge" style="background:#d97706">SW</span><span>Switch</span></button>
         <button class="marker-btn" data-mtype="cam"           onclick="selectMarkerType(this)"><span class="mtype-badge" style="background:#dc2626">CAM</span><span>Cámara</span></button>
       </div>
     </div>
@@ -1465,6 +1494,40 @@
   </div>
 
 </main>
+
+<!-- MODAL CONFIGURACIÓN CÁMARA -->
+<div id="camModal">
+  <div class="cam-box">
+    <div style="display:flex;align-items:center;margin-bottom:14px;">
+      <h3 style="font-size:0.95rem;font-weight:700;flex:1;">📷 Configurar cámara</h3>
+      <button onclick="closeCamModal()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--muted);line-height:1;">✕</button>
+    </div>
+    <!-- Toggle tipo -->
+    <div style="display:flex;gap:8px;margin-bottom:16px;">
+      <button id="btnCamCone" class="cam-type-btn active" onclick="setCamModalType('cone')">🔺 Cono</button>
+      <button id="btnCam360"  class="cam-type-btn"        onclick="setCamModalType('360')">⭕ 360°</button>
+    </div>
+    <!-- Dirección (solo cono) -->
+    <div class="cam-slider-row" id="camAngleRow">
+      <label>Dirección <strong id="camAngleVal">0°</strong></label>
+      <input type="range" id="camAngleSlider" min="0" max="359" value="0" oninput="updateCamPreview()" />
+    </div>
+    <!-- Apertura (solo cono) -->
+    <div class="cam-slider-row" id="camSpreadRow">
+      <label>Ángulo de visión <strong id="camSpreadVal">90°</strong></label>
+      <input type="range" id="camSpreadSlider" min="10" max="180" value="90" oninput="updateCamPreview()" />
+    </div>
+    <!-- Alcance -->
+    <div class="cam-slider-row">
+      <label>Alcance <strong id="camRangeVal">10 m</strong></label>
+      <input type="range" id="camRangeSlider" min="1" max="50" value="10" oninput="updateCamPreview()" />
+    </div>
+    <div style="display:flex;gap:8px;margin-top:4px;">
+      <button onclick="closeCamModal()" style="flex:1;padding:10px;border:1.5px solid var(--border);border-radius:8px;background:white;font-size:0.88rem;cursor:pointer;">Cancelar</button>
+      <button onclick="confirmCamModal()" style="flex:1;padding:10px;border:none;border-radius:8px;background:#dc2626;color:white;font-weight:600;font-size:0.88rem;cursor:pointer;">Guardar</button>
+    </div>
+  </div>
+</div>
 
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
@@ -1608,7 +1671,6 @@ const MARKER_TYPES = {
   data: { short: 'RJ45', label: 'Toma RJ45', color: '#2563eb' },
   wifi: { short: 'AP',   label: 'WiFi AP',   color: '#16a34a' },
   rack: { short: 'RACK', label: 'Rack',      color: '#7c3aed' },
-  sw:   { short: 'SW',   label: 'Switch',    color: '#d97706' },
   cam:  { short: 'CAM',  label: 'Cámara IP', color: '#dc2626' },
 };
 
@@ -2156,6 +2218,8 @@ function renderDraw() {
 
   // Marcadores
   if (showMarkers) {
+    // Primero las visiones de cámara (detrás de los badges)
+    markers.forEach(m => { if (m.type === 'cam') drawCameraVision(drawCtx, m); });
     markers.forEach(m => {
       const c = toCvs(m.x, m.y);
       drawMarkerOnCanvas(drawCtx, m.type, c.x, c.y, m.name, m);
@@ -2178,8 +2242,45 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
+function drawCameraVision(ctx, m) {
+  if (!scale || !m.camRange) return;
+  const c = toCvs(m.x, m.y);
+  const rangePx = (m.camRange / scale) * zoomLevel;
+  const color = '#dc2626';
+  ctx.save();
+  if (m.camType === '360') {
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, rangePx, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.globalAlpha = 0.12;
+    ctx.fill();
+    ctx.globalAlpha = 0.45;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 3]);
+    ctx.stroke();
+  } else {
+    // Cono — 0° = derecha, 90° = abajo (convención canvas)
+    const dir = ((m.camAngle || 0) - 90) * Math.PI / 180;
+    const half = ((m.camSpread || 90) / 2) * Math.PI / 180;
+    ctx.beginPath();
+    ctx.moveTo(c.x, c.y);
+    ctx.arc(c.x, c.y, rangePx, dir - half, dir + half);
+    ctx.closePath();
+    ctx.fillStyle = color;
+    ctx.globalAlpha = 0.15;
+    ctx.fill();
+    ctx.globalAlpha = 0.55;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 3]);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
 function drawMarkerOnCanvas(ctx, type, cx, cy, name, marker) {
-  const mt = MARKER_TYPES[type];
+  const mt = MARKER_TYPES[type] || MARKER_TYPES.data;
 
   // Medir texto para calcular ancho de la pastilla
   ctx.font = 'bold 11px sans-serif';
@@ -2347,6 +2448,9 @@ function onDrawPointerUp(e) {
           // Si toca un marcador RACK existente → abrir diseñador
           const tappedRack = checkRackMarkerTap(imgPt);
           if (tappedRack) { openRackModal(tappedRack); return; }
+          // Si toca una cámara → abrir configuración de visión
+          const tappedCam = checkCamMarkerTap(imgPt);
+          if (tappedCam) { openCamModal(tappedCam); return; }
           const mName = document.getElementById('markerNameInput').value.trim();
           if (mName && markers.some(m => m.name && m.name.toLowerCase() === mName.toLowerCase())) {
             toast(`Ya existe un marcador llamado "${mName}"`); return;
@@ -2953,7 +3057,7 @@ function resetZoom() {
 // Bloquear pull-to-refresh — solo si NO es un elemento con scroll propio
 document.addEventListener('touchmove', e => {
   if (e.touches.length !== 1) return;
-  if (e.target.closest('.scroll-panel, .project-list, #drawerContent, .drawer, .save-modal-box, #rackModal')) return;
+  if (e.target.closest('.scroll-panel, .project-list, #drawerContent, .drawer, .save-modal-box, #rackModal, #camModal')) return;
   if (document.scrollingElement?.scrollTop === 0) e.preventDefault();
 }, { passive: false });
 
@@ -2978,7 +3082,11 @@ window.addEventListener('popstate', () => {
     document.getElementById('rackModal').classList.remove('open');
     scheduleAutoSave(); renderDraw(); return;
   }
-  // 2. Mini-modal de equipo del rack
+  // 2. Modal cámara
+  if (document.getElementById('camModal')?.classList.contains('open')) {
+    closeCamModal(); return;
+  }
+  // 3. Mini-modal de equipo del rack
   if (document.getElementById('rackItemModal')?.classList.contains('open')) {
     closeRackItemModal(); return;
   }
@@ -3585,6 +3693,74 @@ function downloadRackBlob(blob, name) {
 function checkRackMarkerTap(imgPt) {
   const HIT = 28 / zoomLevel;
   return markers.find(m => m.type === 'rack' && Math.hypot(m.x - imgPt.x, m.y - imgPt.y) < HIT);
+}
+
+// ── Detectar toque en marcador CAM ──────────────────────────────
+function checkCamMarkerTap(imgPt) {
+  const HIT = 28 / zoomLevel;
+  return markers.find(m => m.type === 'cam' && Math.hypot(m.x - imgPt.x, m.y - imgPt.y) < HIT);
+}
+
+// ── Modal configuración cámara ───────────────────────────────────
+let _camModalMarker = null;
+
+function openCamModal(marker) {
+  _camModalMarker = marker;
+  if (!marker.camType)   marker.camType   = 'cone';
+  if (marker.camAngle  == null) marker.camAngle  = 0;
+  if (marker.camSpread == null) marker.camSpread = 90;
+  if (marker.camRange  == null) marker.camRange  = 10;
+
+  setCamModalType(marker.camType, false);
+  document.getElementById('camAngleSlider').value  = marker.camAngle;
+  document.getElementById('camAngleVal').textContent = marker.camAngle + '°';
+  document.getElementById('camSpreadSlider').value = marker.camSpread;
+  document.getElementById('camSpreadVal').textContent = marker.camSpread + '°';
+  const r = Math.min(50, Math.max(1, Math.round(marker.camRange)));
+  document.getElementById('camRangeSlider').value  = r;
+  document.getElementById('camRangeVal').textContent = r + ' m';
+  document.getElementById('camModal').classList.add('open');
+}
+
+function closeCamModal() {
+  // Revertir preview al estado guardado (si cancelamos)
+  if (_camModalMarker) { renderDraw(); }
+  document.getElementById('camModal').classList.remove('open');
+  _camModalMarker = null;
+}
+
+function setCamModalType(type, preview = true) {
+  const isCone = type === 'cone';
+  document.getElementById('btnCamCone').classList.toggle('active', isCone);
+  document.getElementById('btnCam360').classList.toggle('active', !isCone);
+  document.getElementById('camAngleRow').style.display  = isCone ? '' : 'none';
+  document.getElementById('camSpreadRow').style.display = isCone ? '' : 'none';
+  if (_camModalMarker) { _camModalMarker.camType = type; if (preview) renderDraw(); }
+}
+
+function updateCamPreview() {
+  if (!_camModalMarker) return;
+  const angle  = parseInt(document.getElementById('camAngleSlider').value);
+  const spread = parseInt(document.getElementById('camSpreadSlider').value);
+  const range  = parseInt(document.getElementById('camRangeSlider').value);
+  document.getElementById('camAngleVal').textContent  = angle + '°';
+  document.getElementById('camSpreadVal').textContent = spread + '°';
+  document.getElementById('camRangeVal').textContent  = range + ' m';
+  _camModalMarker.camAngle  = angle;
+  _camModalMarker.camSpread = spread;
+  _camModalMarker.camRange  = range;
+  renderDraw();
+}
+
+function confirmCamModal() {
+  if (!_camModalMarker) return;
+  _camModalMarker.camAngle  = parseInt(document.getElementById('camAngleSlider').value);
+  _camModalMarker.camSpread = parseInt(document.getElementById('camSpreadSlider').value);
+  _camModalMarker.camRange  = parseInt(document.getElementById('camRangeSlider').value);
+  document.getElementById('camModal').classList.remove('open');
+  _camModalMarker = null;
+  renderDraw();
+  scheduleAutoSave();
 }
 
 // ── AUTOGUARDADO ──────────────────────────────────────────────────
