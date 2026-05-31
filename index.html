@@ -1519,6 +1519,10 @@
 <div id="rackItemModal">
   <div class="rack-item-box">
     <h3 id="rackItemModalTitle">Añadir equipo</h3>
+    <div class="rack-field" id="rackItemTypeField">
+      <label>Tipo de equipo</label>
+      <select id="rackItemType" onchange="onRackItemTypeChange()"></select>
+    </div>
     <div class="rack-field">
       <label>Nombre / etiqueta</label>
       <input type="text" id="rackItemLabel" placeholder="ej. SW-Core" maxlength="30" />
@@ -3399,16 +3403,66 @@ function onRackSlotEnter(e) {
 }
 
 // ── Mini-modal configuración equipo ─────────────────────────────
+function _buildRackItemTypeSelect(selectedType) {
+  const sel = document.getElementById('rackItemType');
+  sel.innerHTML = '';
+  Object.entries(RACK_EQ_TYPES).forEach(([type, eq]) => {
+    const opt = document.createElement('option');
+    opt.value = type;
+    opt.textContent = eq.name;
+    if (type === selectedType) opt.selected = true;
+    sel.appendChild(opt);
+  });
+}
+
+function _buildRackItemSizeSelect(type, selectedU) {
+  const eq = RACK_EQ_TYPES[type];
+  const sel = document.getElementById('rackItemSize');
+  sel.innerHTML = '';
+  for (let n = eq.minU; n <= eq.maxU; n++) {
+    const opt = document.createElement('option');
+    opt.value = n; opt.textContent = n + 'U';
+    if (n === selectedU) opt.selected = true;
+    sel.appendChild(opt);
+  }
+  document.getElementById('rackItemSizeField').style.display = eq.minU === eq.maxU ? 'none' : '';
+}
+
+function _buildRackItemColors(type, selectedColor) {
+  const eq = RACK_EQ_TYPES[type];
+  const cc = document.getElementById('rackItemColors');
+  const color = selectedColor || eq.color;
+  cc.innerHTML = '';
+  RACK_COLORS.forEach(c => {
+    const sw = document.createElement('div');
+    sw.className = 'rack-swatch' + (c === color ? ' sel' : '');
+    sw.style.background = c;
+    sw.addEventListener('click', () => { cc.querySelectorAll('.rack-swatch').forEach(s=>s.classList.remove('sel')); sw.classList.add('sel'); });
+    cc.appendChild(sw);
+  });
+}
+
+function onRackItemTypeChange() {
+  const type = document.getElementById('rackItemType').value;
+  _rackItemModalState.type = type;
+  _buildRackItemSizeSelect(type, RACK_EQ_TYPES[type].defaultU);
+  _buildRackItemColors(type, null); // reset al color por defecto del tipo
+}
+
 function openRackItemModal(mode, item, u, preType, preSizeU) {
   const type = item?.type || preType || 'patchpanel';
   const eq = RACK_EQ_TYPES[type];
-  _rackItemModalState = { mode, type, editId: item?.id };
+  _rackItemModalState = { mode, type, editId: item?.id, u };
 
   document.getElementById('rackItemModalTitle').textContent = mode === 'add' ? 'Añadir equipo' : 'Editar equipo';
   document.getElementById('rackItemLabel').value = item?.label || '';
   document.getElementById('rackItemOkBtn').textContent = mode === 'add' ? 'Añadir' : 'Guardar';
 
-  // Selector de posición (U) — solo en modo añadir
+  // Selector de tipo — visible siempre
+  _buildRackItemTypeSelect(type);
+  document.getElementById('rackItemTypeField').style.display = '';
+
+  // Selector de posición — solo en modo añadir
   const data = getRackData();
   const posField = document.getElementById('rackItemPosField');
   const posSel = document.getElementById('rackItemPos');
@@ -3429,27 +3483,10 @@ function openRackItemModal(mode, item, u, preType, preSizeU) {
   }
 
   // Selector de tamaño
-  const sel = document.getElementById('rackItemSize');
-  sel.innerHTML = '';
-  for (let n = eq.minU; n <= eq.maxU; n++) {
-    const opt = document.createElement('option');
-    opt.value = n; opt.textContent = n + 'U';
-    if (n === (preSizeU || item?.sizeU || eq.defaultU)) opt.selected = true;
-    sel.appendChild(opt);
-  }
-  document.getElementById('rackItemSizeField').style.display = eq.minU === eq.maxU ? 'none' : '';
+  _buildRackItemSizeSelect(type, preSizeU || item?.sizeU || eq.defaultU);
 
   // Colores
-  const cc = document.getElementById('rackItemColors');
-  cc.innerHTML = '';
-  const selColor = item?.color || eq.color;
-  RACK_COLORS.forEach(c => {
-    const sw = document.createElement('div');
-    sw.className = 'rack-swatch' + (c === selColor ? ' sel' : '');
-    sw.style.background = c;
-    sw.addEventListener('click', () => { cc.querySelectorAll('.rack-swatch').forEach(s=>s.classList.remove('sel')); sw.classList.add('sel'); });
-    cc.appendChild(sw);
-  });
+  _buildRackItemColors(type, item?.color);
 
   document.getElementById('rackItemModal').classList.add('open');
   setTimeout(() => document.getElementById('rackItemLabel').focus(), 150);
@@ -3468,7 +3505,8 @@ function confirmRackItem() {
   const startU = parseInt(document.getElementById('rackItemPos').value) || 1;
   const sel = document.querySelector('#rackItemColors .rack-swatch.sel');
   const color = sel ? sel.style.background : RACK_COLORS[0];
-  const { mode, type, editId } = _rackItemModalState;
+  const type = document.getElementById('rackItemType').value || _rackItemModalState.type;
+  const { mode, editId } = _rackItemModalState;
 
   if (mode === 'add') {
     if (!canRackPlace(startU, sizeU)) { toast('No hay espacio suficiente en esa posición'); return; }
@@ -3477,7 +3515,7 @@ function confirmRackItem() {
     const item = data.rackItems.find(i => i.id === editId);
     if (item) {
       if (!canRackPlace(item.startU, sizeU, editId)) { toast('No hay espacio para ampliar'); return; }
-      item.label = label; item.sizeU = sizeU; item.color = color;
+      item.type = type; item.label = label; item.sizeU = sizeU; item.color = color;
     }
   }
   closeRackItemModal();
