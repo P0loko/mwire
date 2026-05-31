@@ -3423,6 +3423,13 @@ let _rackItemModalState = null;
 function openRackModal(marker) {
   _rackMarker = marker;
   if (!marker.rackData) marker.rackData = { rackSize: 12, rackItems: [] };
+  // Si editRackName dejó un <input> en lugar del <h2>, restaurarlo
+  const existingInput = document.querySelector('#rackModal .rack-name-input');
+  if (existingInput) {
+    const h2 = document.createElement('h2');
+    h2.id = 'rackModalTitle'; h2.title = 'Tocar para renombrar'; h2.onclick = editRackName;
+    existingInput.replaceWith(h2);
+  }
   document.getElementById('rackModalTitle').textContent = marker.name || 'Rack';
   buildRackSizeButtons();
   renderRackEqPanel();
@@ -3950,12 +3957,16 @@ function _updateCamArrow(angle) {
   if (val) val.textContent = Math.round(angle) + '°';
 }
 
+let _camSnapshot = null; // copia del estado antes de abrir el panel
+
 function openCamModal(marker) {
   _camModalMarker = marker;
   if (!marker.camType)   marker.camType   = 'cone';
   if (marker.camAngle  == null) marker.camAngle  = 0;
   if (marker.camSpread == null) marker.camSpread = 90;
   if (marker.camRange  == null) marker.camRange  = 10;
+  // Guardar snapshot para poder revertir si se cancela
+  _camSnapshot = { name: marker.name, camType: marker.camType, camAngle: marker.camAngle, camSpread: marker.camSpread, camRange: marker.camRange };
 
   document.getElementById('camNameInput').value = marker.name || '';
   setCamModalType(marker.camType, false);
@@ -3969,9 +3980,14 @@ function openCamModal(marker) {
 }
 
 function closeCamModal() {
-  if (_camModalMarker) { renderDraw(); }
+  // Revertir al estado anterior (el usuario canceló)
+  if (_camModalMarker && _camSnapshot) {
+    Object.assign(_camModalMarker, _camSnapshot);
+  }
   document.getElementById('camModal').classList.remove('open');
   _camModalMarker = null;
+  _camSnapshot = null;
+  renderDraw();
 }
 
 function setCamModalType(type, preview = true) {
@@ -4021,6 +4037,7 @@ function confirmCamModal() {
   _camModalMarker.camRange  = parseInt(document.getElementById('camRangeSlider').value);
   document.getElementById('camModal').classList.remove('open');
   _camModalMarker = null;
+  _camSnapshot = null;
   renderDraw();
   scheduleAutoSave();
 }
