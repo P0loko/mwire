@@ -759,6 +759,33 @@
       transition: transform 0.1s; color: #dc2626;
     }
 
+    /* ── ONBOARDING ── */
+    #onboardModal {
+      position: fixed; inset: 0; z-index: 2000;
+      background: rgba(15,23,42,0.96);
+      display: flex; align-items: center; justify-content: center;
+      padding: 24px;
+    }
+    .onboard-card {
+      background: white; border-radius: 20px;
+      padding: 28px 22px 22px;
+      max-width: 340px; width: 100%;
+      text-align: center;
+    }
+    .onboard-step {
+      display: flex; align-items: flex-start; gap: 12px;
+      text-align: left; padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .onboard-step:last-of-type { border-bottom: none; }
+    .onboard-step-icon {
+      width: 36px; height: 36px; border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.1rem; flex-shrink: 0;
+    }
+    .onboard-step-text strong { display: block; font-size: 0.88rem; margin-bottom: 2px; }
+    .onboard-step-text span { font-size: 0.78rem; color: var(--muted); line-height: 1.4; }
+
     /* ── TOAST ── */
     @keyframes slideUp {
       from { transform: translateY(100%); }
@@ -1505,6 +1532,58 @@
   </div>
 
 </main>
+
+<!-- ONBOARDING PRIMER USO -->
+<div id="onboardModal" style="display:none;">
+  <div class="onboard-card">
+    <!-- Logo + título -->
+    <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:6px;">
+      <svg width="36" height="36" viewBox="0 0 32 32" fill="none">
+        <rect width="32" height="32" rx="9" fill="#2563eb"/>
+        <path d="M5 25 L9 12 L16 21 L23 12 L27 25" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        <circle cx="5" cy="25" r="2" fill="#facc15"/>
+        <circle cx="27" cy="25" r="2" fill="#facc15"/>
+      </svg>
+      <div style="text-align:left;">
+        <div style="font-size:1.3rem;font-weight:800;color:#1e293b;">MWire</div>
+        <div style="font-size:0.72rem;color:var(--muted);">Medidor de cable UTP</div>
+      </div>
+    </div>
+    <p style="font-size:0.82rem;color:var(--muted);margin:10px 0 16px;">Documenta instalaciones sobre plano en 3 pasos</p>
+
+    <!-- Pasos -->
+    <div class="onboard-step">
+      <div class="onboard-step-icon" style="background:#eff6ff;">🗺️</div>
+      <div class="onboard-step-text">
+        <strong>Sube el plano</strong>
+        <span>Foto, captura o imagen escaneada de la instalación</span>
+      </div>
+    </div>
+    <div class="onboard-step">
+      <div class="onboard-step-icon" style="background:#f0fdf4;">📐</div>
+      <div class="onboard-step-text">
+        <strong>Calibra la escala</strong>
+        <span>Marca dos puntos de distancia conocida en el plano</span>
+      </div>
+    </div>
+    <div class="onboard-step">
+      <div class="onboard-step-icon" style="background:#fef9c3;">✏️</div>
+      <div class="onboard-step-text">
+        <strong>Traza cables y marcadores</strong>
+        <span>Dibuja recorridos, añade racks 🗄️, cámaras 📷 y tomas 🔌</span>
+      </div>
+    </div>
+
+    <div style="margin-top:6px;padding-top:12px;border-top:1px solid var(--border);font-size:0.75rem;color:var(--muted);">
+      💡 Los marcadores <strong>RACK</strong> y <strong>CAM</strong> son configurables — tócalos para editarlos
+    </div>
+
+    <button onclick="dismissOnboard()"
+      style="margin-top:16px;width:100%;padding:13px;border:none;border-radius:10px;background:#2563eb;color:white;font-size:0.95rem;font-weight:700;cursor:pointer;">
+      Empezar →
+    </button>
+  </div>
+</div>
 
 <!-- MODAL EDITAR MARCADOR GENÉRICO -->
 <div id="markerEditModal" style="position:fixed;inset:0;z-index:700;background:rgba(0,0,0,0.5);display:flex;align-items:flex-end;justify-content:center;opacity:0;pointer-events:none;transition:opacity 0.2s;">
@@ -2369,6 +2448,22 @@ function drawMarkerOnCanvas(ctx, type, cx, cy, name, marker) {
     ctx.fillText(name, cx, by + bh + 3);
   }
 
+  // Badge ✎ en marcadores interactivos (Rack y Cam) cuando estamos en pestaña marcadores
+  if ((type === 'rack' || type === 'cam') && activeTab === 'markers' && !deleteMarkerMode) {
+    const ex = bx + bw + 2, ey = by - 2;
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(ex, ey, 6, 0, Math.PI * 2);
+    ctx.fillStyle = '#1e293b';
+    ctx.fill();
+    ctx.font = 'bold 8px sans-serif';
+    ctx.fillStyle = 'white';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('✎', ex, ey + 0.5);
+    ctx.restore();
+  }
+
   // Modo borrar: círculo rojo con ✕ en esquina superior derecha
   if (deleteMarkerMode) {
     const dx = bx + bw, dy = by;
@@ -2509,6 +2604,15 @@ function onDrawPointerUp(e) {
           }
           markers.push({ id: Date.now(), type: selectedMarkerType, x: imgPt.x, y: imgPt.y, name: mName });
           if (mName) document.getElementById('markerNameInput').value = autoIncrementName(mName);
+          // Hint contextual la primera vez que se coloca un rack o cámara
+          if (selectedMarkerType === 'rack' && !localStorage.getItem('mwire_hint_rack')) {
+            localStorage.setItem('mwire_hint_rack', '1');
+            setTimeout(() => toast('🗄️ Toca el marcador RACK para diseñar su equipamiento', 3500), 400);
+          }
+          if (selectedMarkerType === 'cam' && !localStorage.getItem('mwire_hint_cam')) {
+            localStorage.setItem('mwire_hint_cam', '1');
+            setTimeout(() => toast('📷 Toca la cámara para configurar su ángulo de visión', 3500), 400);
+          }
           renderDraw();
           scheduleAutoSave();
         }
@@ -3004,6 +3108,11 @@ function switchTab(tab) {
     drawingActive = false;
     document.getElementById('btnToggleDraw').textContent = '✏️ Trazar';
     document.getElementById('btnToggleDraw').style.background = '#fef9c3';
+  }
+  // Hint la primera vez que se entra en marcadores
+  if (tab === 'markers' && !localStorage.getItem('mwire_hint_markers')) {
+    localStorage.setItem('mwire_hint_markers', '1');
+    setTimeout(() => toast('📍 Toca el plano para añadir marcadores · Toca RACK o CAM para configurarlos', 4000), 300);
   }
 }
 
@@ -4674,6 +4783,22 @@ if ('serviceWorker' in navigator) {
     document.getElementById('updateBanner').classList.remove('show');
   });
 }
+
+// ── Onboarding primer uso ──────────────────────────────────────
+function initOnboard() {
+  if (localStorage.getItem('mwire_onboarded')) return;
+  const modal = document.getElementById('onboardModal');
+  if (modal) modal.style.display = 'flex';
+}
+
+function dismissOnboard() {
+  localStorage.setItem('mwire_onboarded', '1');
+  const modal = document.getElementById('onboardModal');
+  if (modal) { modal.style.opacity = '0'; modal.style.transition = 'opacity 0.3s'; setTimeout(() => modal.style.display = 'none', 300); }
+}
+
+// Mostrar al cargar (después de restaurar sesión)
+setTimeout(initOnboard, 400);
 
 // Banner de instalación (evento beforeinstallprompt — Chrome/Android)
 let deferredInstallPrompt = null;
