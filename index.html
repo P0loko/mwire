@@ -1485,7 +1485,7 @@
 
     <div class="canvas-wrap" id="drawWrap">
       <canvas id="drawCanvas"></canvas>
-      <div class="fab-row">
+      <div class="fab-row" id="fabRow" style="display:none;">
         <button class="fab fab-red" title="Deshacer último punto" onclick="undoLastPoint()">↩</button>
         <button class="fab fab-green" title="Finalizar cable actual" onclick="finishCable()">✔</button>
       </div>
@@ -2639,6 +2639,11 @@ function onDrawWheel(e) {
   renderDraw();
 }
 
+function _setFabVisibility(visible) {
+  const row = document.getElementById('fabRow');
+  if (row) row.style.display = visible ? 'flex' : 'none';
+}
+
 function toggleDrawing() {
   if (!drawingActive) {
     // Validar nombre duplicado antes de empezar a trazar
@@ -2656,6 +2661,7 @@ function toggleDrawing() {
     }
   }
   drawingActive = !drawingActive;
+  _setFabVisibility(drawingActive);
   const btn = document.getElementById('btnToggleDraw');
   if (drawingActive) {
     btn.textContent = '⏹ Detener';
@@ -2664,6 +2670,8 @@ function toggleDrawing() {
   } else {
     btn.textContent = '✏️ Trazar';
     btn.style.background = '#fef9c3';
+    currentPoints = [];
+    renderDraw();
   }
 }
 
@@ -2709,6 +2717,7 @@ function finishCable() {
   cables.push({ name, color: selectedColor, points: [...currentPoints], meters, extraDrop: 0, extraSlack: 0 });
   currentPoints = [];
   drawingActive = false;
+  _setFabVisibility(false);
   document.getElementById('btnToggleDraw').textContent = '✏️ Trazar';
   document.getElementById('btnToggleDraw').style.background = '#fef9c3';
   // Auto-incrementar nombre si termina en número
@@ -2755,7 +2764,7 @@ function applyFloor(idx) {
   cables = (f.cables || []).map(c => ({...c, points: [...c.points]}));
   markers = [...(f.markers || [])];
   offsetX = f.offsetX || 0; offsetY = f.offsetY || 0; zoomLevel = f.zoomLevel || 1;
-  currentPoints = []; drawingActive = false;
+  currentPoints = []; drawingActive = false; _setFabVisibility(false);
   // Cancelar tap pendiente para evitar añadir puntos a la planta equivocada
   if (_tapTimer) { clearTimeout(_tapTimer); _tapTimer = null; }
   _ptrs.clear(); _pinchDist = null;
@@ -3106,6 +3115,7 @@ function switchTab(tab) {
   // Desactivar trazado si cambia de tab
   if (tab === 'markers' && drawingActive) {
     drawingActive = false;
+    _setFabVisibility(false);
     document.getElementById('btnToggleDraw').textContent = '✏️ Trazar';
     document.getElementById('btnToggleDraw').style.background = '#fef9c3';
   }
@@ -3270,6 +3280,7 @@ window.addEventListener('popstate', () => {
   // 4. Cancelar trazado activo
   if (drawingActive) {
     drawingActive = false;
+    _setFabVisibility(false);
     currentPoints = [];
     const btn = document.getElementById('btnToggleDraw');
     if (btn) { btn.textContent = '✏️ Trazar'; btn.style.background = '#fef9c3'; }
