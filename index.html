@@ -2947,7 +2947,7 @@ function resetZoom() {
 // Bloquear pull-to-refresh — solo si NO es un elemento con scroll propio
 document.addEventListener('touchmove', e => {
   if (e.touches.length !== 1) return;
-  if (e.target.closest('.scroll-panel, .project-list, #drawerContent, .drawer, .save-modal-box')) return;
+  if (e.target.closest('.scroll-panel, .project-list, #drawerContent, .drawer, .save-modal-box, .rack-view-area, .rack-eq-panel')) return;
   if (document.scrollingElement?.scrollTop === 0) e.preventDefault();
 }, { passive: false });
 
