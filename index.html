@@ -896,7 +896,13 @@
       display: flex; align-items: center; gap: 10px;
       flex-shrink: 0;
     }
-    .rack-modal-header h2 { font-size: 1rem; font-weight: 700; color: #f1f5f9; flex: 1; }
+    .rack-modal-header h2 { font-size: 1rem; font-weight: 700; color: #f1f5f9; flex: 1; cursor: pointer; }
+    .rack-modal-header h2:hover { opacity: 0.8; }
+    .rack-name-input {
+      flex: 1; background: rgba(255,255,255,0.15); border: none;
+      border-bottom: 2px solid white; color: white;
+      font-size: 1rem; font-weight: 700; outline: none; padding: 2px 4px;
+    }
     .btn-rack-back {
       background: none; border: none; color: #94a3b8;
       font-size: 0.85rem; cursor: pointer; padding: 4px 8px;
@@ -1495,12 +1501,38 @@
 
 </main>
 
+<!-- MODAL EDITAR MARCADOR GENÉRICO -->
+<div id="markerEditModal" style="position:fixed;inset:0;z-index:700;background:rgba(0,0,0,0.5);display:flex;align-items:flex-end;justify-content:center;opacity:0;pointer-events:none;transition:opacity 0.2s;">
+  <div class="cam-box">
+    <div style="display:flex;align-items:center;margin-bottom:14px;">
+      <h3 id="markerEditTitle" style="font-size:0.95rem;font-weight:700;flex:1;">Editar marcador</h3>
+      <button onclick="closeMarkerEditModal()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--muted);line-height:1;">✕</button>
+    </div>
+    <div style="margin-bottom:16px;">
+      <label style="font-size:0.82rem;color:var(--muted);display:block;margin-bottom:5px;">Nombre / etiqueta</label>
+      <input type="text" id="markerEditInput" placeholder="ej. Sala de reuniones" maxlength="20"
+        style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:0.95rem;outline:none;" />
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button onclick="deleteMarkerFromModal()" style="padding:10px 12px;border:1.5px solid #dc2626;border-radius:8px;background:white;color:#dc2626;font-weight:600;font-size:0.85rem;cursor:pointer;">🗑 Borrar</button>
+      <button onclick="closeMarkerEditModal()" style="flex:1;padding:10px;border:1.5px solid var(--border);border-radius:8px;background:white;font-size:0.88rem;cursor:pointer;">Cancelar</button>
+      <button onclick="confirmMarkerEditModal()" style="flex:1;padding:10px;border:none;border-radius:8px;background:var(--primary);color:white;font-weight:600;font-size:0.88rem;cursor:pointer;">Guardar</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL CONFIGURACIÓN CÁMARA -->
 <div id="camModal">
   <div class="cam-box">
     <div style="display:flex;align-items:center;margin-bottom:14px;">
       <h3 style="font-size:0.95rem;font-weight:700;flex:1;">📷 Configurar cámara</h3>
       <button onclick="closeCamModal()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--muted);line-height:1;">✕</button>
+    </div>
+    <!-- Nombre -->
+    <div class="cam-slider-row" style="margin-bottom:14px;">
+      <label>Nombre / etiqueta <strong></strong></label>
+      <input type="text" id="camNameInput" placeholder="ej. Entrada principal" maxlength="20"
+        style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:0.9rem;outline:none;" />
     </div>
     <!-- Toggle tipo -->
     <div style="display:flex;gap:8px;margin-bottom:16px;">
@@ -1556,7 +1588,7 @@
 <div id="rackModal">
   <div class="rack-modal-header">
     <button class="btn-rack-back" onclick="closeRackModal()">← Volver al plano</button>
-    <h2 id="rackModalTitle">Rack</h2>
+    <h2 id="rackModalTitle" onclick="editRackName()" title="Tocar para renombrar">Rack</h2>
     <button class="btn-rack-back" onclick="exportRackImage()" style="color:#2563eb;">📤</button>
   </div>
   <div id="rackDragGhost"></div>
@@ -2451,6 +2483,9 @@ function onDrawPointerUp(e) {
           // Si toca una cámara → abrir configuración de visión
           const tappedCam = checkCamMarkerTap(imgPt);
           if (tappedCam) { openCamModal(tappedCam); return; }
+          // Cualquier otro marcador → editar nombre
+          const tappedMarker = checkAnyMarkerTap(imgPt);
+          if (tappedMarker) { openMarkerEditModal(tappedMarker); return; }
           const mName = document.getElementById('markerNameInput').value.trim();
           if (mName && markers.some(m => m.name && m.name.toLowerCase() === mName.toLowerCase())) {
             toast(`Ya existe un marcador llamado "${mName}"`); return;
@@ -3082,7 +3117,10 @@ window.addEventListener('popstate', () => {
     document.getElementById('rackModal').classList.remove('open');
     scheduleAutoSave(); renderDraw(); return;
   }
-  // 2. Modal cámara
+  // 2. Modal editar marcador
+  const _mem = document.getElementById('markerEditModal');
+  if (_mem && _mem.style.opacity === '1') { closeMarkerEditModal(); return; }
+  // 3. Modal cámara
   if (document.getElementById('camModal')?.classList.contains('open')) {
     closeCamModal(); return;
   }
@@ -3267,6 +3305,30 @@ function closeRackModal() {
   document.getElementById('rackModal').classList.remove('open');
   scheduleAutoSave();
   renderDraw();
+}
+
+function editRackName() {
+  const h2 = document.getElementById('rackModalTitle');
+  if (!h2) return;
+  const current = h2.textContent.trim();
+  const input = document.createElement('input');
+  input.className = 'rack-name-input';
+  input.value = current;
+  input.maxLength = 30;
+  h2.replaceWith(input);
+  input.focus(); input.select();
+  const save = () => {
+    const name = input.value.trim() || current;
+    if (_rackMarker) { _rackMarker.name = name; scheduleAutoSave(); }
+    const newH2 = document.createElement('h2');
+    newH2.id = 'rackModalTitle';
+    newH2.title = 'Tocar para renombrar';
+    newH2.textContent = name;
+    newH2.onclick = editRackName;
+    input.replaceWith(newH2);
+  };
+  input.addEventListener('blur', save);
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); input.blur(); } });
 }
 
 function getRackData() { return _rackMarker?.rackData || { rackSize: 12, rackItems: [] }; }
@@ -3695,6 +3757,46 @@ function checkRackMarkerTap(imgPt) {
   return markers.find(m => m.type === 'rack' && Math.hypot(m.x - imgPt.x, m.y - imgPt.y) < HIT);
 }
 
+// ── Detectar toque en cualquier marcador ─────────────────────────
+function checkAnyMarkerTap(imgPt) {
+  const HIT = 28 / zoomLevel;
+  return markers.find(m => Math.hypot(m.x - imgPt.x, m.y - imgPt.y) < HIT);
+}
+
+// ── Modal genérico editar marcador ───────────────────────────────
+let _editingMarker = null;
+
+function openMarkerEditModal(marker) {
+  _editingMarker = marker;
+  const mt = MARKER_TYPES[marker.type] || { label: 'Marcador' };
+  document.getElementById('markerEditTitle').textContent = 'Editar ' + mt.label;
+  document.getElementById('markerEditInput').value = marker.name || '';
+  const modal = document.getElementById('markerEditModal');
+  modal.style.opacity = '1'; modal.style.pointerEvents = 'all';
+  setTimeout(() => document.getElementById('markerEditInput').focus(), 150);
+}
+
+function closeMarkerEditModal() {
+  const modal = document.getElementById('markerEditModal');
+  modal.style.opacity = '0'; modal.style.pointerEvents = 'none';
+  _editingMarker = null;
+}
+
+function confirmMarkerEditModal() {
+  if (!_editingMarker) return;
+  _editingMarker.name = document.getElementById('markerEditInput').value.trim();
+  closeMarkerEditModal();
+  renderDraw(); scheduleAutoSave();
+}
+
+function deleteMarkerFromModal() {
+  if (!_editingMarker) return;
+  const idx = markers.indexOf(_editingMarker);
+  if (idx !== -1) markers.splice(idx, 1);
+  closeMarkerEditModal();
+  renderDraw(); scheduleAutoSave();
+}
+
 // ── Detectar toque en marcador CAM ──────────────────────────────
 function checkCamMarkerTap(imgPt) {
   const HIT = 28 / zoomLevel;
@@ -3711,6 +3813,7 @@ function openCamModal(marker) {
   if (marker.camSpread == null) marker.camSpread = 90;
   if (marker.camRange  == null) marker.camRange  = 10;
 
+  document.getElementById('camNameInput').value = marker.name || '';
   setCamModalType(marker.camType, false);
   document.getElementById('camAngleSlider').value  = marker.camAngle;
   document.getElementById('camAngleVal').textContent = marker.camAngle + '°';
@@ -3754,6 +3857,7 @@ function updateCamPreview() {
 
 function confirmCamModal() {
   if (!_camModalMarker) return;
+  _camModalMarker.name      = document.getElementById('camNameInput').value.trim();
   _camModalMarker.camAngle  = parseInt(document.getElementById('camAngleSlider').value);
   _camModalMarker.camSpread = parseInt(document.getElementById('camSpreadSlider').value);
   _camModalMarker.camRange  = parseInt(document.getElementById('camRangeSlider').value);
