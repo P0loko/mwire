@@ -2293,8 +2293,8 @@ function drawCameraVision(ctx, m) {
     ctx.setLineDash([4, 3]);
     ctx.stroke();
   } else {
-    // Cono — 0° = derecha, 90° = abajo (convención canvas)
-    const dir = ((m.camAngle || 0) - 90) * Math.PI / 180;
+    // Cono — 0° = derecha, 90° = abajo (atan2 y canvas misma convención)
+    const dir = (m.camAngle || 0) * Math.PI / 180;
     const half = ((m.camSpread || 90) / 2) * Math.PI / 180;
     ctx.beginPath();
     ctx.moveTo(c.x, c.y);
@@ -2460,7 +2460,9 @@ function onDrawPointerUp(e) {
   const wasMoved = _moved;
   _ptrs.delete(e.pointerId);
   if (_ptrs.size < 2) _pinchDist = null;
-  if (_ptrs.size > 0) return;  // todavía hay dedos activos
+  if (_ptrs.size > 0) return;
+  // En modo apuntado de cámara: no ejecutar lógica de tap/marcador
+  if (_camModalMarker) { _moved = false; return; }
 
   if (!wasMoved) {
     // ── Detectar doble tap para resetear zoom ─────────────
@@ -3866,10 +3868,14 @@ function setCamAngleFromCanvas(clientX, clientY) {
   if (!_camModalMarker) return;
   const rect = drawCanvas.getBoundingClientRect();
   const camCvs = toCvs(_camModalMarker.x, _camModalMarker.y);
-  const dx = clientX - rect.left - camCvs.x / (window.devicePixelRatio || 1);
-  const dy = clientY - rect.top  - camCvs.y / (window.devicePixelRatio || 1);
-  if (Math.hypot(dx, dy) < 8) return; // ignorar toques justo encima del marcador
-  // atan2 da 0=derecha, luego convertimos: 0°=derecha, 90°=abajo
+  // Escalar coordenadas internas del canvas a píxeles CSS de pantalla
+  const scaleX = rect.width  / drawCanvas.width;
+  const scaleY = rect.height / drawCanvas.height;
+  const camScreenX = rect.left + camCvs.x * scaleX;
+  const camScreenY = rect.top  + camCvs.y * scaleY;
+  const dx = clientX - camScreenX;
+  const dy = clientY - camScreenY;
+  if (Math.hypot(dx, dy) < 5) return;
   let angle = Math.atan2(dy, dx) * 180 / Math.PI;
   if (angle < 0) angle += 360;
   _camModalMarker.camAngle = Math.round(angle);
