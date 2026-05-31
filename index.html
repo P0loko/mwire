@@ -4689,20 +4689,15 @@ async function doExport() {
         doc.setFillColor(r, g, b);
         doc.rect(innerX, sy, innerW, ih, 'F');
 
-        // Borde sutil
-        doc.setDrawColor(255, 255, 255); doc.setLineWidth(0.1);
-        doc.setGState && doc.setGState(doc.GState({ opacity: 0.1 }));
-        doc.rect(innerX, sy, innerW, ih, 'S');
-
-        // Texto del equipo
+        // Texto del equipo (sin emojis — jsPDF helvetica no los soporta)
         doc.setTextColor(255, 255, 255);
         doc.setFontSize(5.5); doc.setFont('helvetica', 'bold');
-        const label = `${eq.icon} ${item.label || eq.name}`;
+        const label = item.label || eq.name;
         doc.text(label, innerX + 3, sy + ih / 2 + 1.5);
 
-        // Tamaño en U
+        // Tipo en pequeño a la derecha
         doc.setFont('helvetica', 'normal'); doc.setFontSize(4.5);
-        doc.setTextColor(255, 255, 255, 0.6);
+        doc.setTextColor(200, 200, 200);
         doc.text(`${item.sizeU}U`, innerX + innerW - 6, sy + ih / 2 + 1.5);
 
       } else if (!item) {
