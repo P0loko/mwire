@@ -916,8 +916,10 @@
     /* Rack visual */
     .rack-view-area {
       flex: 1; overflow: auto; padding: 16px;
-      display: flex; justify-content: center;
-      touch-action: pan-x pan-y;
+      display: flex; justify-content: center; align-items: flex-start;
+      touch-action: auto;
+      min-height: 0;          /* evita que flex expanda el hijo al contenido */
+      -webkit-overflow-scrolling: touch;
     }
     .rack-wrap { width: 100%; max-width: 460px; }
     .rack-frame {
@@ -2962,7 +2964,16 @@ window.addEventListener('popstate', () => {
   // Reinyectar estado para que el próximo back también lo capture
   history.pushState({ mwire: true }, '');
 
-  // Prioridad: cerrar lo que esté abierto antes de retroceder pasos
+  // 1. Rack modal (máxima prioridad)
+  if (document.getElementById('rackModal')?.classList.contains('open')) {
+    document.getElementById('rackModal').classList.remove('open');
+    scheduleAutoSave(); renderDraw(); return;
+  }
+  // 2. Mini-modal de equipo del rack
+  if (document.getElementById('rackItemModal')?.classList.contains('open')) {
+    closeRackItemModal(); return;
+  }
+  // 3. Modales generales
   if (document.getElementById('exportModal')?.classList.contains('open')) {
     closeExportModal(); return;
   }
@@ -2975,7 +2986,7 @@ window.addEventListener('popstate', () => {
   if (document.getElementById('colorPanel')?.style.display === 'flex') {
     closeColorPanel(); return;
   }
-  // Si está trazando un cable, cancelar el trazado
+  // 4. Cancelar trazado activo
   if (drawingActive) {
     drawingActive = false;
     currentPoints = [];
@@ -2983,10 +2994,9 @@ window.addEventListener('popstate', () => {
     if (btn) { btn.textContent = '✏️ Trazar'; btn.style.background = '#fef9c3'; }
     renderDraw(); return;
   }
-  // Retroceder un paso si estamos en paso 2 ó 3
+  // 5. Retroceder paso
   if (currentStep === 3) { goStep(2); return; }
   if (currentStep === 2) { goStep(1); return; }
-  // Paso 1: no hacer nada (la app se queda abierta)
 });
 
 // Touch events ya no se necesitan para calibración — gestionado por Pointer Events
@@ -3132,19 +3142,8 @@ function openRackModal(marker) {
 function closeRackModal() {
   document.getElementById('rackModal').classList.remove('open');
   scheduleAutoSave();
-  renderDraw(); // actualizar plano con nuevo estado del rack
-  if (history.state?.rackOpen) history.back();
+  renderDraw();
 }
-
-// Escuchar popstate para cerrar el rack modal con botón atrás
-window.addEventListener('popstate', (e) => {
-  if (document.getElementById('rackModal').classList.contains('open')) {
-    document.getElementById('rackModal').classList.remove('open');
-    scheduleAutoSave(); renderDraw();
-    // Re-push el estado normal de la app
-    history.pushState({ mwire: true }, '');
-  }
-});
 
 function getRackData() { return _rackMarker?.rackData || { rackSize: 12, rackItems: [] }; }
 
