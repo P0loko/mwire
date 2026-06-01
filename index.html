@@ -4736,115 +4736,183 @@ async function doExport() {
 
     const rd = marker.rackData;
     const rackName = marker.name || 'Rack';
-    const SLOT_H = 7, NUM_W = 8, RACK_W = imgMaxW;
-    const totalRackH = rd.rackSize * SLOT_H;
 
-    // Cabecera
-    doc.setFontSize(13); doc.setFont('helvetica', 'bold');
+    // ── Dimensiones del armario ──────────────────────────────────
+    const RACK_W  = 95;   // ancho del armario en mm (centrado en página)
+    const POST_W  = 7;    // ancho de cada montante lateral (con nº de U)
+    const INNER_W = RACK_W - POST_W * 2;
+    const HANDLE  = 4;    // altura de los handles superior e inferior
+
+    // Altura de slot auto-escalada para que quepa siempre en la página
+    const HEAD_H  = 20;   // cabecera (título + subtítulo)
+    const availH  = pageH - pad * 2 - HEAD_H - HANDLE * 2;
+    const SLOT_H  = Math.max(4.5, Math.min(12, availH / rd.rackSize));
+    const totalRackH = HANDLE * 2 + rd.rackSize * SLOT_H;
+
+    // Centrar el armario horizontalmente
+    const rackX = (pageW - RACK_W) / 2;
+    let ry = pad + HEAD_H;
+
+    // ── Cabecera de página ───────────────────────────────────────
+    doc.setFontSize(13); doc.setFont('helvetica', 'bold'); doc.setTextColor(0, 0, 0);
+    doc.text(rackName, pad, pad + 7);
+    doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.setTextColor(100, 116, 139);
+    doc.text(`${floorName} · ${rd.rackSize}U · ${rd.rackItems.length} equipo(s)`, pad, pad + 14);
     doc.setTextColor(0, 0, 0);
-    doc.text(`${rackName}`, pad, pad + 7);
-    doc.setFontSize(8); doc.setFont('helvetica', 'normal');
-    doc.setTextColor(100, 116, 139);
-    doc.text(`${floorName} · ${rd.rackSize}U · ${rd.rackItems.length} equipo(s)`, pad, pad + 13);
-    doc.setTextColor(0, 0, 0);
 
-    let ry = pad + 18;
+    // ── Cuerpo del armario ───────────────────────────────────────
+    // Fondo exterior (carcasa oscura)
+    doc.setFillColor(30, 41, 59);
+    doc.rect(rackX, ry, RACK_W, totalRackH, 'F');
 
-    // Marco exterior del rack
-    doc.setFillColor(8, 12, 20);
-    doc.rect(pad, ry, RACK_W, totalRackH + 4, 'F');
+    // Handle superior
+    doc.setFillColor(51, 65, 85);
+    doc.rect(rackX, ry, RACK_W, HANDLE, 'F');
+    doc.setFillColor(71, 85, 105);
+    doc.rect(rackX + RACK_W/2 - 13, ry + 1, 11, 2, 'F');
+    doc.rect(rackX + RACK_W/2 + 2,  ry + 1, 11, 2, 'F');
 
-    // Slots
+    // Handle inferior
+    doc.setFillColor(51, 65, 85);
+    doc.rect(rackX, ry + HANDLE + rd.rackSize * SLOT_H, RACK_W, HANDLE, 'F');
+    doc.setFillColor(71, 85, 105);
+    doc.rect(rackX + RACK_W/2 - 13, ry + HANDLE + rd.rackSize * SLOT_H + 1, 11, 2, 'F');
+    doc.rect(rackX + RACK_W/2 + 2,  ry + HANDLE + rd.rackSize * SLOT_H + 1, 11, 2, 'F');
+
+    // ── Slots ────────────────────────────────────────────────────
     const rackOcc = new Array(rd.rackSize + 1).fill(null);
     rd.rackItems.forEach(item => {
       for (let u = item.startU; u < item.startU + item.sizeU; u++) {
         if (u >= 1 && u <= rd.rackSize) rackOcc[u] = item;
       }
     });
-
     const rendered = new Set();
-    const innerX = pad + NUM_W;
-    const innerW = RACK_W - NUM_W * 2;
+    const eqX = rackX + POST_W;
 
     for (let u = 1; u <= rd.rackSize; u++) {
-      const sy = ry + 2 + (u - 1) * SLOT_H;
+      const sy = ry + HANDLE + (u - 1) * SLOT_H;
 
-      // Números laterales
-      doc.setFillColor(8, 12, 20);
-      doc.rect(pad, sy, NUM_W, SLOT_H, 'F');
-      doc.rect(pad + RACK_W - NUM_W, sy, NUM_W, SLOT_H, 'F');
-      doc.setFontSize(5); doc.setTextColor(100, 116, 139);
-      doc.setFont('helvetica', 'normal');
-      doc.text(String(u), pad + NUM_W / 2, sy + SLOT_H / 2 + 1, { align: 'center' });
-      doc.text(String(u), pad + RACK_W - NUM_W / 2, sy + SLOT_H / 2 + 1, { align: 'center' });
+      // Montantes (números de U)
+      doc.setFillColor(15, 23, 42);
+      doc.rect(rackX,              sy, POST_W, SLOT_H, 'F');
+      doc.rect(rackX + RACK_W - POST_W, sy, POST_W, SLOT_H, 'F');
+      doc.setFontSize(4); doc.setFont('helvetica', 'normal'); doc.setTextColor(71, 85, 105);
+      doc.text(String(u), rackX + POST_W / 2,              sy + SLOT_H / 2 + 1, { align: 'center' });
+      doc.text(String(u), rackX + RACK_W - POST_W / 2,     sy + SLOT_H / 2 + 1, { align: 'center' });
 
       const item = rackOcc[u];
       if (item && !rendered.has(item.id)) {
         rendered.add(item.id);
-        const eq = RACK_EQ_TYPES[item.type];
-        const ih = item.sizeU * SLOT_H - 0.5;
+        const eq  = RACK_EQ_TYPES[item.type];
+        const ih  = item.sizeU * SLOT_H - 0.3;
+        const hex = item.color.replace('#', '');
+        const r   = parseInt(hex.substr(0,2),16);
+        const g   = parseInt(hex.substr(2,2),16);
+        const b   = parseInt(hex.substr(4,2),16);
 
-        // Color del equipo (convertir hex a RGB)
-        const hex = item.color.replace('#','');
-        const r = parseInt(hex.substr(0,2),16);
-        const g = parseInt(hex.substr(2,2),16);
-        const b = parseInt(hex.substr(4,2),16);
+        // Fondo del equipo
         doc.setFillColor(r, g, b);
-        doc.rect(innerX, sy, innerW, ih, 'F');
+        doc.rect(eqX, sy, INNER_W, ih, 'F');
 
-        // Texto del equipo (sin emojis — jsPDF helvetica no los soporta)
-        doc.setTextColor(255, 255, 255);
-        doc.setFontSize(5.5); doc.setFont('helvetica', 'bold');
+        // Borde interior sutil
+        doc.setDrawColor(Math.min(255,r+40), Math.min(255,g+40), Math.min(255,b+40));
+        doc.setLineWidth(0.2);
+        doc.rect(eqX, sy, INNER_W, ih, 'S');
+
+        // Nombre/etiqueta
+        const fs = Math.max(4, Math.min(6.5, SLOT_H * 0.72));
+        doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(fs);
         const label = item.label || eq.name;
-        doc.text(label, innerX + 3, sy + ih / 2 + 1.5);
+        doc.text(label, eqX + 2.5, sy + ih / 2 + fs * 0.35);
 
-        // Tipo en pequeño a la derecha
-        doc.setFont('helvetica', 'normal'); doc.setFontSize(4.5);
-        doc.setTextColor(200, 200, 200);
-        doc.text(`${item.sizeU}U`, innerX + innerW - 6, sy + ih / 2 + 1.5);
+        // Tipo + tamaño a la derecha (más pequeño)
+        const fsS = Math.max(3.5, fs * 0.78);
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(fsS);
+        doc.setTextColor(210, 210, 210);
+        doc.text(`${eq.name}  ${item.sizeU}U`, eqX + INNER_W - 1.5, sy + ih / 2 + fsS * 0.35, { align: 'right' });
+
+        // Líneas separadoras entre Us del mismo equipo
+        if (item.sizeU > 1) {
+          doc.setDrawColor(r * 0.6, g * 0.6, b * 0.6); doc.setLineWidth(0.15);
+          for (let s = 1; s < item.sizeU; s++) {
+            const lineY = sy + s * SLOT_H;
+            doc.line(eqX, lineY, eqX + INNER_W, lineY);
+          }
+        }
 
       } else if (!item) {
-        doc.setFillColor(10, 14, 26);
-        doc.rect(innerX, sy, innerW, SLOT_H, 'F');
+        // Slot vacío
+        doc.setFillColor(8, 12, 20);
+        doc.rect(eqX, sy, INNER_W, SLOT_H, 'F');
+        // Tornillos decorativos
+        doc.setFillColor(25, 38, 58);
+        doc.circle(eqX + 2.5, sy + SLOT_H/2, 0.9, 'F');
+        doc.circle(eqX + INNER_W - 2.5, sy + SLOT_H/2, 0.9, 'F');
       }
 
       // Línea separadora entre slots
-      doc.setDrawColor(20, 30, 50); doc.setLineWidth(0.2);
-      doc.line(innerX, sy + SLOT_H, innerX + innerW, sy + SLOT_H);
+      doc.setDrawColor(20, 30, 50); doc.setLineWidth(0.1);
+      doc.line(eqX, sy + SLOT_H, eqX + INNER_W, sy + SLOT_H);
     }
 
     doc.setTextColor(0, 0, 0);
 
-    // Tabla de equipos del rack debajo del dibujo
-    let ty = ry + totalRackH + 10;
-    if (ty + rd.rackItems.length * 5.5 + 10 < pageH - pad) {
-      doc.setFontSize(8); doc.setFont('helvetica', 'bold');
-      doc.text('Equipos del rack', pad, ty);
-      ty += 6;
+    // ── Lista de equipos ─────────────────────────────────────────
+    // Si hay espacio a la derecha del rack, tabla lateral; si no, debajo
+    const tableX   = rackX + RACK_W + 6;
+    const tableAvW = pageW - pad - tableX;
 
-      // Cabecera tabla
-      doc.setFillColor(124, 58, 237);
-      doc.rect(pad, ty, imgMaxW, 5.5, 'F');
-      doc.setTextColor(255, 255, 255); doc.setFontSize(7);
-      doc.text('U', pad + 2, ty + 3.8);
-      doc.text('Tipo', pad + 12, ty + 3.8);
-      doc.text('Nombre / Etiqueta', pad + 50, ty + 3.8);
-      doc.text('Tamaño', pad + 150, ty + 3.8);
-      ty += 5.5;
+    if (tableAvW >= 38 && rd.rackItems.length > 0) {
+      // Tabla a la derecha del rack
+      let ty = ry;
+      doc.setFontSize(6.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(30, 41, 59);
+      doc.text('Equipos', tableX, ty + 4); ty += 8;
 
-      doc.setTextColor(0, 0, 0);
-      rd.rackItems.forEach((item, ci) => {
-        if (ty > pageH - pad - 8) { doc.addPage(); ty = pad + 8; }
-        const eq = RACK_EQ_TYPES[item.type];
-        doc.setFillColor(ci % 2 === 0 ? 248 : 255, ci % 2 === 0 ? 245 : 255, ci % 2 === 0 ? 255 : 255);
-        doc.rect(pad, ty, imgMaxW, 5.5, 'F');
-        doc.setFont('helvetica', 'normal'); doc.setFontSize(7);
-        doc.text(`${item.startU}`, pad + 2, ty + 3.8);
-        doc.text(eq.name, pad + 12, ty + 3.8);
-        doc.text(item.label || '—', pad + 50, ty + 3.8);
-        doc.text(`${item.sizeU}U`, pad + 150, ty + 3.8);
-        ty += 5.5;
+      rd.rackItems.forEach(item => {
+        if (ty > ry + totalRackH) return;
+        const eq  = RACK_EQ_TYPES[item.type];
+        const hex = item.color.replace('#','');
+        const r   = parseInt(hex.substr(0,2),16);
+        const g   = parseInt(hex.substr(2,2),16);
+        const b   = parseInt(hex.substr(4,2),16);
+        doc.setFillColor(r, g, b);
+        doc.rect(tableX, ty - 3, 2.5, 3, 'F');
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(5.5); doc.setTextColor(30, 41, 59);
+        doc.text(`U${item.startU}`, tableX + 4, ty);
+        const name = (item.label || eq.name).slice(0, 16);
+        doc.text(name, tableX + 11, ty);
+        doc.setTextColor(100, 116, 139);
+        doc.text(`${item.sizeU}U`, tableX + tableAvW, ty, { align: 'right' });
+        ty += 5;
       });
+
+    } else if (rd.rackItems.length > 0) {
+      // Tabla debajo del rack
+      let ty = ry + totalRackH + 8;
+      if (ty + rd.rackItems.length * 5 + 14 < pageH - pad) {
+        doc.setFontSize(7); doc.setFont('helvetica', 'bold'); doc.text('Equipos del rack', pad, ty); ty += 6;
+        doc.setFillColor(124, 58, 237);
+        doc.rect(pad, ty, imgMaxW, 5, 'F');
+        doc.setTextColor(255,255,255); doc.setFontSize(6);
+        doc.text('U', pad+2, ty+3.4);
+        doc.text('Tipo', pad+12, ty+3.4);
+        doc.text('Nombre', pad+50, ty+3.4);
+        doc.text('Tamaño', pad+imgMaxW-2, ty+3.4, { align: 'right' });
+        ty += 5;
+        doc.setTextColor(0,0,0);
+        rd.rackItems.forEach((item, ci) => {
+          if (ty > pageH - pad - 6) { doc.addPage(); ty = pad + 8; }
+          const eq = RACK_EQ_TYPES[item.type];
+          doc.setFillColor(ci%2===0 ? 248:255, ci%2===0 ? 245:255, 255);
+          doc.rect(pad, ty, imgMaxW, 4.8, 'F');
+          doc.setFont('helvetica','normal'); doc.setFontSize(6);
+          doc.text(`${item.startU}`, pad+2, ty+3.2);
+          doc.text(eq.name, pad+12, ty+3.2);
+          doc.text(item.label||'—', pad+50, ty+3.2);
+          doc.text(`${item.sizeU}U`, pad+imgMaxW-2, ty+3.2, { align:'right' });
+          ty += 4.8;
+        });
+      }
     }
   }
 
