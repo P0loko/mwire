@@ -759,6 +759,27 @@
       transition: transform 0.1s; color: #dc2626;
     }
 
+    /* ── MODAL RECORTE ── */
+    #cropModal {
+      position: fixed; inset: 0; z-index: 600;
+      background: #0f172a;
+      display: none; flex-direction: column;
+    }
+    #cropModal.open { display: flex; }
+    .crop-header {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 14px; flex-shrink: 0;
+      background: #1e293b; border-bottom: 1px solid #334155;
+    }
+    .crop-hint {
+      color: #94a3b8; font-size: 0.8rem; flex: 1; text-align: center; line-height: 1.3;
+    }
+    #cropCanvas { flex: 1; touch-action: none; display: block; }
+    .btn-crop-action {
+      padding: 7px 14px; border-radius: 8px; border: none;
+      font-size: 0.85rem; font-weight: 700; cursor: pointer; white-space: nowrap;
+    }
+
     /* ── ONBOARDING ── */
     #onboardModal {
       position: fixed; inset: 0; z-index: 2000;
@@ -1397,8 +1418,9 @@
       <p style="color:var(--muted);font-size:0.82rem;text-align:center;max-width:280px;">
         Puede ser una foto, captura de pantalla o imagen escaneada del plano de la instalación.
       </p>
-      <div style="display:flex;gap:10px;align-items:center;">
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center;">
         <button class="btn btn-outline" id="btnCancelFloor" style="display:none;" onclick="cancelAddFloor()">← Cancelar</button>
+        <button class="btn btn-outline" id="btnCropPlan" style="display:none;" onclick="openCropModal()">✂️ Recortar</button>
         <button class="btn btn-primary" id="btnGoCalib" disabled onclick="goStep(2)">
           Continuar →
         </button>
@@ -1532,6 +1554,18 @@
   </div>
 
 </main>
+
+<!-- MODAL RECORTE DE PLANO -->
+<div id="cropModal">
+  <div class="crop-header">
+    <button class="btn-crop-action" onclick="closeCropModal()"
+      style="background:#334155;color:#f1f5f9;">✕ Cancelar</button>
+    <span class="crop-hint">Arrastra para seleccionar el área que quieres conservar</span>
+    <button class="btn-crop-action" id="btnConfirmCrop" onclick="confirmCrop()"
+      style="background:#16a34a;color:white;opacity:0.4;" disabled>✔ Recortar</button>
+  </div>
+  <canvas id="cropCanvas"></canvas>
+</div>
 
 <!-- ONBOARDING PRIMER USO -->
 <div id="onboardModal" style="display:none;">
@@ -1841,6 +1875,7 @@ function loadImage(e) {
       floors[currentFloorIdx].imgW = imgW;
       floors[currentFloorIdx].imgH = imgH;
       document.getElementById('btnGoCalib').disabled = false;
+      document.getElementById('btnCropPlan').style.display = '';
       const previewImg = document.getElementById('previewImg');
       const previewWrap = document.getElementById('previewWrap');
       previewImg.src = ev.target.result;
@@ -1896,6 +1931,7 @@ async function _loadPDF(file) {
       floors[currentFloorIdx].imgW   = imgW;
       floors[currentFloorIdx].imgH   = imgH;
       document.getElementById('btnGoCalib').disabled = false;
+      document.getElementById('btnCropPlan').style.display = '';
       document.getElementById('previewImg').src = dataUrl;
       document.getElementById('previewWrap').style.display = 'block';
       toast(`✔ PDF página ${pageNum} cargado como plano`);
@@ -2839,6 +2875,7 @@ function applyFloor(idx) {
       imgW = img.width; imgH = img.height;
       floors[idx].imgW = imgW; floors[idx].imgH = imgH;
       document.getElementById('btnGoCalib').disabled = false;
+      document.getElementById('btnCropPlan').style.display = '';
       document.getElementById('previewImg').src = img.src;
       document.getElementById('previewWrap').style.display = 'block';
       if (scale) { goStep(3); updateCableList(); }
@@ -2848,6 +2885,7 @@ function applyFloor(idx) {
   } else {
     img = null;
     document.getElementById('btnGoCalib').disabled = true;
+    document.getElementById('btnCropPlan').style.display = 'none';
     document.getElementById('previewWrap').style.display = 'none';
     document.getElementById('previewImg').src = '';
     // Go to step 1 directly (sin validación)
@@ -3288,7 +3326,7 @@ function resetZoom() {
 // Bloquear pull-to-refresh — solo si NO es un elemento con scroll propio
 document.addEventListener('touchmove', e => {
   if (e.touches.length !== 1) return;
-  if (e.target.closest('.scroll-panel, .project-list, #drawerContent, .drawer, .save-modal-box, #rackModal, #camModal')) return;
+  if (e.target.closest('.scroll-panel, .project-list, #drawerContent, .drawer, .save-modal-box, #rackModal, #camModal, #cropModal')) return;
   if (document.scrollingElement?.scrollTop === 0) e.preventDefault();
 }, { passive: false });
 
@@ -3308,7 +3346,11 @@ window.addEventListener('popstate', () => {
   // Reinyectar estado para que el próximo back también lo capture
   history.pushState({ mwire: true }, '');
 
-  // 1. Rack modal (máxima prioridad)
+  // 1. Modal recorte
+  if (document.getElementById('cropModal')?.classList.contains('open')) {
+    closeCropModal(); return;
+  }
+  // 2. Rack modal
   if (document.getElementById('rackModal')?.classList.contains('open')) {
     document.getElementById('rackModal').classList.remove('open');
     scheduleAutoSave(); renderDraw(); return;
@@ -4365,6 +4407,7 @@ function doNewProject() {
   calibCanvas = null; calibCtx = null;
   drawCanvas = null; drawCtx = null;
   document.getElementById('btnGoCalib').disabled = true;
+  document.getElementById('btnCropPlan').style.display = 'none';
   document.getElementById('previewWrap').style.display = 'none';
   document.getElementById('previewImg').src = '';
   document.getElementById('fileInput').value = '';
@@ -4865,6 +4908,192 @@ if ('serviceWorker' in navigator) {
   document.getElementById('btnDismissUpdate').addEventListener('click', () => {
     document.getElementById('updateBanner').classList.remove('show');
   });
+}
+
+// ═══════════════════════════════════════════════
+//  RECORTE DE PLANO
+// ═══════════════════════════════════════════════
+let _crop = null; // { scale, offX, offY, rect: {x1,y1,x2,y2}|null, dragging, startX, startY }
+
+function openCropModal() {
+  if (!img) return;
+  const canvas = document.getElementById('cropCanvas');
+  const DPR = window.devicePixelRatio || 1;
+  const headerH = document.querySelector('.crop-header')?.offsetHeight || 50;
+  const vw = window.innerWidth, vh = window.innerHeight - headerH;
+  canvas.width  = vw * DPR;
+  canvas.height = vh * DPR;
+  canvas.style.width  = vw + 'px';
+  canvas.style.height = vh + 'px';
+
+  const scale = Math.min(vw / imgW, vh / imgH) * 0.96;
+  const offX  = (vw  - imgW * scale) / 2;
+  const offY  = (vh  - imgH * scale) / 2;
+
+  _crop = { scale, offX, offY, DPR, rect: null, dragging: false, startX: 0, startY: 0 };
+
+  document.getElementById('cropModal').classList.add('open');
+  _drawCrop();
+
+  // Eventos de puntero
+  canvas.addEventListener('pointerdown', _cropPointerDown, { passive: false });
+  canvas.addEventListener('pointermove', _cropPointerMove, { passive: false });
+  canvas.addEventListener('pointerup',   _cropPointerUp);
+  canvas.addEventListener('pointercancel', _cropPointerUp);
+}
+
+function closeCropModal() {
+  document.getElementById('cropModal').classList.remove('open');
+  const canvas = document.getElementById('cropCanvas');
+  canvas.removeEventListener('pointerdown', _cropPointerDown);
+  canvas.removeEventListener('pointermove', _cropPointerMove);
+  canvas.removeEventListener('pointerup',   _cropPointerUp);
+  canvas.removeEventListener('pointercancel', _cropPointerUp);
+  _crop = null;
+}
+
+function _cropPointerDown(e) {
+  e.preventDefault();
+  if (!_crop) return;
+  const { x, y } = _cropCssXY(e);
+  _crop.dragging = true;
+  _crop.startX = x; _crop.startY = y;
+  _crop.rect = null;
+  document.getElementById('cropCanvas').setPointerCapture(e.pointerId);
+}
+
+function _cropPointerMove(e) {
+  e.preventDefault();
+  if (!_crop?.dragging) return;
+  const { x, y } = _cropCssXY(e);
+  // Convertir a coordenadas de imagen
+  const { scale, offX, offY } = _crop;
+  const toImg = (cx, cy) => ({
+    x: Math.max(0, Math.min(imgW, (cx - offX) / scale)),
+    y: Math.max(0, Math.min(imgH, (cy - offY) / scale))
+  });
+  const a = toImg(_crop.startX, _crop.startY);
+  const b = toImg(x, y);
+  _crop.rect = {
+    x1: Math.min(a.x, b.x), y1: Math.min(a.y, b.y),
+    x2: Math.max(a.x, b.x), y2: Math.max(a.y, b.y)
+  };
+  _drawCrop();
+}
+
+function _cropPointerUp() {
+  if (!_crop) return;
+  _crop.dragging = false;
+  const r = _crop.rect;
+  const valid = r && (r.x2 - r.x1) > 20 && (r.y2 - r.y1) > 20;
+  const btn = document.getElementById('btnConfirmCrop');
+  btn.disabled = !valid;
+  btn.style.opacity = valid ? '1' : '0.4';
+}
+
+function _cropCssXY(e) {
+  const rect = document.getElementById('cropCanvas').getBoundingClientRect();
+  return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+}
+
+function _drawCrop() {
+  if (!_crop) return;
+  const canvas = document.getElementById('cropCanvas');
+  const ctx = canvas.getContext('2d');
+  const { scale, offX, offY, DPR, rect } = _crop;
+  const W = canvas.width, H = canvas.height;
+
+  ctx.save();
+  ctx.scale(DPR, DPR);
+  const cW = W / DPR, cH = H / DPR;
+
+  // Fondo oscuro + imagen
+  ctx.fillStyle = '#0f172a';
+  ctx.fillRect(0, 0, cW, cH);
+  ctx.drawImage(img, offX, offY, imgW * scale, imgH * scale);
+
+  if (rect) {
+    const rx = offX + rect.x1 * scale, ry = offY + rect.y1 * scale;
+    const rw = (rect.x2 - rect.x1) * scale, rh = (rect.y2 - rect.y1) * scale;
+
+    // Overlay oscuro fuera del recorte
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillRect(0, 0, cW, ry);                          // arriba
+    ctx.fillRect(0, ry + rh, cW, cH - ry - rh);          // abajo
+    ctx.fillRect(0, ry, rx, rh);                          // izquierda
+    ctx.fillRect(rx + rw, ry, cW - rx - rw, rh);          // derecha
+
+    // Borde del recorte
+    ctx.strokeStyle = '#22c55e';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([]);
+    ctx.strokeRect(rx, ry, rw, rh);
+
+    // Líneas de tercios (guía de composición)
+    ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    for (let i = 1; i < 3; i++) {
+      ctx.beginPath(); ctx.moveTo(rx + rw*i/3, ry); ctx.lineTo(rx + rw*i/3, ry+rh); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(rx, ry + rh*i/3); ctx.lineTo(rx+rw, ry + rh*i/3); ctx.stroke();
+    }
+    ctx.setLineDash([]);
+
+    // Esquinas resaltadas
+    const cs = 14;
+    ctx.strokeStyle = '#22c55e'; ctx.lineWidth = 3;
+    [[rx,ry,1,1],[rx+rw,ry,-1,1],[rx,ry+rh,1,-1],[rx+rw,ry+rh,-1,-1]].forEach(([x,y,sx,sy]) => {
+      ctx.beginPath(); ctx.moveTo(x+sx*cs, y); ctx.lineTo(x, y); ctx.lineTo(x, y+sy*cs); ctx.stroke();
+    });
+
+    // Dimensiones en píxeles de imagen
+    const dimW = Math.round(rect.x2 - rect.x1), dimH = Math.round(rect.y2 - rect.y1);
+    const dimText = `${dimW} × ${dimH} px`;
+    ctx.font = 'bold 12px sans-serif';
+    const tw = ctx.measureText(dimText).width;
+    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    ctx.fillRect(rx + rw/2 - tw/2 - 6, ry + rh + 6, tw + 12, 20);
+    ctx.fillStyle = 'white'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(dimText, rx + rw/2, ry + rh + 16);
+  } else {
+    // Instrucción inicial
+    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    ctx.font = 'bold 14px sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('Arrastra para seleccionar el área', cW/2, cH - 24);
+  }
+  ctx.restore();
+}
+
+function confirmCrop() {
+  if (!_crop?.rect) return;
+  const r = _crop.rect;
+  const x = Math.round(r.x1), y = Math.round(r.y1);
+  const w = Math.round(r.x2 - r.x1), h = Math.round(r.y2 - r.y1);
+  if (w < 20 || h < 20) return;
+
+  // Crear canvas con el área recortada
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  c.getContext('2d').drawImage(img, x, y, w, h, 0, 0, w, h);
+  const dataUrl = c.toDataURL('image/jpeg', 0.95);
+
+  img = new Image();
+  img.onload = () => {
+    imgW = w; imgH = h;
+    floors[currentFloorIdx].imgSrc = dataUrl;
+    floors[currentFloorIdx].imgW   = w;
+    floors[currentFloorIdx].imgH   = h;
+    // Resetear calibración — el recorte cambia el plano
+    scale = null; calibPts = []; calibPhase = 'A';
+    floors[currentFloorIdx].scale = null;
+    floors[currentFloorIdx].calibPts = [];
+    floors[currentFloorIdx].calibPhase = 'A';
+    document.getElementById('previewImg').src = dataUrl;
+    closeCropModal();
+    toast('✔ Plano recortado');
+  };
+  img.src = dataUrl;
 }
 
 // ── Onboarding primer uso ──────────────────────────────────────
