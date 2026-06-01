@@ -1371,8 +1371,8 @@
             <path d="M3 9h18M9 3v18"/>
           </svg>
           <p>Archivo</p>
-          <small>Galería o carpeta</small>
-          <input type="file" id="fileInput" accept="image/*" onchange="loadImage(event)" />
+          <small>Imagen o PDF</small>
+          <input type="file" id="fileInput" accept="image/*,application/pdf" onchange="loadImage(event)" />
         </div>
 
         <!-- Opción 2: Cámara -->
@@ -1825,6 +1825,12 @@ function goStep(n) {
 function loadImage(e) {
   const file = e.target.files[0];
   if (!file) return;
+
+  if (file.type === 'application/pdf') {
+    _loadPDF(file);
+    return;
+  }
+
   const reader = new FileReader();
   reader.onload = ev => {
     img = new Image();
@@ -1835,7 +1841,6 @@ function loadImage(e) {
       floors[currentFloorIdx].imgW = imgW;
       floors[currentFloorIdx].imgH = imgH;
       document.getElementById('btnGoCalib').disabled = false;
-      // Mostrar preview
       const previewImg = document.getElementById('previewImg');
       const previewWrap = document.getElementById('previewWrap');
       previewImg.src = ev.target.result;
@@ -1845,6 +1850,61 @@ function loadImage(e) {
     img.src = ev.target.result;
   };
   reader.readAsDataURL(file);
+}
+
+async function _loadPDF(file) {
+  toast('Convirtiendo PDF…');
+  try {
+    // Cargar pdf.js dinámicamente
+    if (!window.pdfjsLib) {
+      await new Promise((res, rej) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+        s.onload = res; s.onerror = () => rej(new Error('No se pudo cargar pdf.js'));
+        document.head.appendChild(s);
+      });
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    }
+
+    const arrayBuffer = await file.arrayBuffer();
+    const pdfDoc = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+
+    // Si tiene más de una página, preguntar cuál usar
+    let pageNum = 1;
+    if (pdfDoc.numPages > 1) {
+      const input = prompt(`El PDF tiene ${pdfDoc.numPages} páginas. ¿Qué página quieres usar como plano? (1–${pdfDoc.numPages})`, '1');
+      pageNum = Math.max(1, Math.min(pdfDoc.numPages, parseInt(input) || 1));
+    }
+
+    const page = await pdfDoc.getPage(pageNum);
+    // Escalar para obtener buena resolución (2x el tamaño natural)
+    const viewport = page.getViewport({ scale: 2 });
+    const canvas = document.createElement('canvas');
+    canvas.width  = viewport.width;
+    canvas.height = viewport.height;
+    const ctx = canvas.getContext('2d');
+    await page.render({ canvasContext: ctx, viewport }).promise;
+
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+
+    img = new Image();
+    img.onload = () => {
+      imgW = img.width;
+      imgH = img.height;
+      floors[currentFloorIdx].imgSrc = dataUrl;
+      floors[currentFloorIdx].imgW   = imgW;
+      floors[currentFloorIdx].imgH   = imgH;
+      document.getElementById('btnGoCalib').disabled = false;
+      document.getElementById('previewImg').src = dataUrl;
+      document.getElementById('previewWrap').style.display = 'block';
+      toast(`✔ PDF página ${pageNum} cargado como plano`);
+    };
+    img.src = dataUrl;
+
+  } catch(err) {
+    toast('Error al leer el PDF: ' + (err.message || err));
+  }
 }
 
 // ═══════════════════════════════════════════════
