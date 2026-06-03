@@ -1470,10 +1470,16 @@
       </div>
     </div>
 
-    <!-- Toolbar cables: nombre + color + trazar -->
+    <!-- Toolbar cables: nombre + cantidad + color + trazar -->
     <div class="toolbar" id="toolbar-cables" style="gap:6px;padding:6px 8px;position:relative;">
       <input class="cable-name-input" id="cableNameInput" placeholder="Nombre del cable..." maxlength="20" style="flex:1;min-width:0;" />
-      <!-- Botón color: muestra el color activo, abre panel -->
+      <!-- Cantidad de cables -->
+      <div style="display:flex;align-items:center;gap:3px;flex-shrink:0;" title="Número de cables a añadir con este recorrido">
+        <span style="font-size:0.7rem;color:var(--muted);white-space:nowrap;">×</span>
+        <input type="number" id="cableQtyInput" min="1" max="99" value="1"
+          style="width:36px;padding:5px 4px;border:1.5px solid var(--border);border-radius:6px;font-size:0.85rem;text-align:center;outline:none;" />
+      </div>
+      <!-- Botón color -->
       <button id="btnColorPicker" onclick="toggleColorPanel()" title="Color del cable"
         style="width:30px;height:30px;border-radius:50%;border:3px solid #1e293b;background:#2563eb;flex-shrink:0;cursor:pointer;padding:0;"></button>
       <button class="btn btn-sm" id="btnToggleDraw" style="background:#fef9c3;border:1.5px solid #facc15;color:#92400e;white-space:nowrap;flex-shrink:0;" onclick="toggleDrawing()">✏️ Trazar</button>
@@ -1530,13 +1536,13 @@
         </ul>
         <div class="global-coca-row" style="margin-top:6px;">
           <label>⬇ Bajada global:</label>
-          <input class="global-coca-input" type="number" id="globalDropInput" min="0" step="0.5" value="0" placeholder="m" />
+          <input class="global-coca-input" type="number" id="globalDropInput" min="0" step="0.5" value="0" placeholder="m" onfocus="this.select()" />
           <span style="color:var(--muted);font-size:0.8rem;">m</span>
           <button class="btn-apply-coca" onclick="applyGlobalDrop()">A todos</button>
         </div>
         <div class="global-coca-row">
           <label>🔄 Coca global:</label>
-          <input class="global-coca-input" type="number" id="globalCocaInput" min="0" step="0.5" value="0" placeholder="m" />
+          <input class="global-coca-input" type="number" id="globalCocaInput" min="0" step="0.5" value="0" placeholder="m" onfocus="this.select()" />
           <span style="color:var(--muted);font-size:0.8rem;">m</span>
           <button class="btn-apply-coca" onclick="applyGlobalCoca()">A todos</button>
         </div>
@@ -2801,28 +2807,38 @@ function finishCable() {
   }
 
   const nameInput = document.getElementById('cableNameInput');
-  const name = nameInput.value.trim() || `Cable ${cables.length + 1}`;
+  const qty = Math.max(1, Math.min(99, parseInt(document.getElementById('cableQtyInput')?.value) || 1));
+  const baseName = nameInput.value.trim() || `Cable ${cables.length + 1}`;
 
-  if (cables.some(c => c.name.toLowerCase() === name.toLowerCase())) {
-    nameInput.style.borderColor = '#dc2626';
-    nameInput.style.background = '#fef2f2';
-    setTimeout(() => { nameInput.style.borderColor = ''; nameInput.style.background = ''; }, 2000);
-    toast(`Ya existe un cable llamado "${name}"`); return;
+  // Añadir N cables con el mismo recorrido
+  let addedNames = [];
+  let currentName = baseName;
+  for (let i = 0; i < qty; i++) {
+    // Si el nombre ya existe, incrementar hasta encontrar uno libre
+    while (cables.some(c => c.name.toLowerCase() === currentName.toLowerCase())) {
+      currentName = autoIncrementName(currentName);
+    }
+    cables.push({ name: currentName, color: selectedColor, points: [...currentPoints], meters, extraDrop: 0, extraSlack: 0 });
+    addedNames.push(currentName);
+    currentName = autoIncrementName(currentName);
   }
 
-  cables.push({ name, color: selectedColor, points: [...currentPoints], meters, extraDrop: 0, extraSlack: 0 });
   currentPoints = [];
   drawingActive = false;
   _setFabVisibility(false);
   document.getElementById('btnToggleDraw').textContent = '✏️ Trazar';
   document.getElementById('btnToggleDraw').style.background = '#fef9c3';
-  // Auto-incrementar nombre si termina en número
-  nameInput.value = autoIncrementName(name);
+  // Dejar el input listo para el siguiente cable
+  nameInput.value = currentName;
 
   updateCableList();
   renderDraw();
   scheduleAutoSave();
-  toast(`✔ "${name}" añadido: ${meters.toFixed(2)} m`);
+  if (qty === 1) {
+    toast(`✔ "${addedNames[0]}" añadido: ${meters.toFixed(2)} m`);
+  } else {
+    toast(`✔ ${qty} cables añadidos: ${meters.toFixed(2)} m c/u`);
+  }
 }
 
 // ═══════════════════════════════════════════════
@@ -3067,12 +3083,14 @@ function updateCableList() {
         <div class="extra-row">
           <label>⬇ Bajada toma (m)</label>
           <input class="extra-input" type="number" min="0" step="0.5" value="${(c.extraDrop||0)}"
+            onfocus="this.select()"
             onchange="updateCableExtras(${i}, 'extraDrop', this.value)"
             oninput="updateCableExtras(${i}, 'extraDrop', this.value)" />
         </div>
         <div class="extra-row">
           <label>🔄 Coca rack (m)</label>
           <input class="extra-input" type="number" min="0" step="0.5" value="${(c.extraSlack||0)}"
+            onfocus="this.select()"
             onchange="updateCableExtras(${i}, 'extraSlack', this.value)"
             oninput="updateCableExtras(${i}, 'extraSlack', this.value)" />
         </div>
