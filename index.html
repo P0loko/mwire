@@ -3853,6 +3853,7 @@ function _buildRackItemColors(type, selectedColor) {
     const sw = document.createElement('div');
     sw.className = 'rack-swatch' + (c === color ? ' sel' : '');
     sw.style.background = c;
+    sw.dataset.color = c; // guardar como hex para el PDF
     sw.addEventListener('click', () => { cc.querySelectorAll('.rack-swatch').forEach(s=>s.classList.remove('sel')); sw.classList.add('sel'); });
     cc.appendChild(sw);
   });
@@ -3920,7 +3921,8 @@ function confirmRackItem() {
   const sizeU = parseInt(document.getElementById('rackItemSize').value) || 1;
   const startU = parseInt(document.getElementById('rackItemPos').value) || 1;
   const sel = document.querySelector('#rackItemColors .rack-swatch.sel');
-  const color = sel ? sel.style.background : RACK_COLORS[0];
+  // Leer data-color (hex) en vez de style.background (que el navegador convierte a rgb())
+  const color = sel ? (sel.dataset.color || sel.style.background) : RACK_COLORS[0];
   const type = document.getElementById('rackItemType').value || _rackItemModalState.type;
   const { mode, editId } = _rackItemModalState;
 
@@ -4604,6 +4606,22 @@ function renderFloorToCanvas(floorData, exCables, exMarkers) {
   });
 }
 
+// Parsea cualquier formato de color CSS a [r, g, b] (0-255)
+function _colorToRgb(color) {
+  if (!color) return [55, 65, 81];
+  // Formato hex: #rrggbb o #rgb
+  const hexMatch = color.match(/^#([0-9a-f]{3,6})$/i);
+  if (hexMatch) {
+    let h = hexMatch[1];
+    if (h.length === 3) h = h[0]+h[0]+h[1]+h[1]+h[2]+h[2];
+    return [parseInt(h.substr(0,2),16), parseInt(h.substr(2,2),16), parseInt(h.substr(4,2),16)];
+  }
+  // Formato rgb(r, g, b)
+  const rgbMatch = color.match(/rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)/i);
+  if (rgbMatch) return [parseInt(rgbMatch[1]), parseInt(rgbMatch[2]), parseInt(rgbMatch[3])];
+  return [55, 65, 81]; // fallback gris oscuro
+}
+
 async function doExport() {
   const exCables  = document.getElementById('exportChkCables').checked;
   const exMarkers = document.getElementById('exportChkMarkers').checked;
@@ -4803,12 +4821,9 @@ async function doExport() {
       const item = rackOcc[u];
       if (item && !rendered.has(item.id)) {
         rendered.add(item.id);
-        const eq  = RACK_EQ_TYPES[item.type];
-        const ih  = item.sizeU * SLOT_H - 0.3;
-        const hex = item.color.replace('#', '');
-        const r   = parseInt(hex.substr(0,2),16);
-        const g   = parseInt(hex.substr(2,2),16);
-        const b   = parseInt(hex.substr(4,2),16);
+        const eq       = RACK_EQ_TYPES[item.type];
+        const ih       = item.sizeU * SLOT_H - 0.3;
+        const [r,g,b]  = _colorToRgb(item.color);
 
         // Fondo del equipo
         doc.setFillColor(r, g, b);
@@ -4844,10 +4859,10 @@ async function doExport() {
         // Slot vacío
         doc.setFillColor(8, 12, 20);
         doc.rect(eqX, sy, INNER_W, SLOT_H, 'F');
-        // Tornillos decorativos
+        // Tornillos decorativos (ellipse es más compatible que circle en jsPDF)
         doc.setFillColor(25, 38, 58);
-        doc.circle(eqX + 2.5, sy + SLOT_H/2, 0.9, 'F');
-        doc.circle(eqX + INNER_W - 2.5, sy + SLOT_H/2, 0.9, 'F');
+        doc.ellipse(eqX + 2.5, sy + SLOT_H/2, 0.9, 0.9, 'F');
+        doc.ellipse(eqX + INNER_W - 2.5, sy + SLOT_H/2, 0.9, 0.9, 'F');
       }
 
       // Línea separadora entre slots
@@ -4870,11 +4885,8 @@ async function doExport() {
 
       rd.rackItems.forEach(item => {
         if (ty > ry + totalRackH) return;
-        const eq  = RACK_EQ_TYPES[item.type];
-        const hex = item.color.replace('#','');
-        const r   = parseInt(hex.substr(0,2),16);
-        const g   = parseInt(hex.substr(2,2),16);
-        const b   = parseInt(hex.substr(4,2),16);
+        const eq       = RACK_EQ_TYPES[item.type];
+        const [r,g,b]  = _colorToRgb(item.color);
         doc.setFillColor(r, g, b);
         doc.rect(tableX, ty - 3, 2.5, 3, 'F');
         doc.setFont('helvetica', 'normal'); doc.setFontSize(5.5); doc.setTextColor(30, 41, 59);
