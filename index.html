@@ -383,7 +383,17 @@
       align-items: center;
       gap: 10px;
       padding: 10px 0;
+      cursor: pointer;
+      border-radius: 6px;
+      transition: background 0.15s;
     }
+    .cable-row:active { background: #f1f5f9; }
+    .cable-row.selected {
+      background: #eff6ff;
+      padding-left: 4px; padding-right: 4px;
+    }
+    .cable-row.selected .cable-name { color: var(--primary); font-weight: 700; }
+    .cable-row.selected .cable-meters { color: var(--primary-dark); }
     .cable-color {
       width: 14px; height: 14px;
       border-radius: 50%;
@@ -1823,6 +1833,7 @@ let activeTab = 'cables';
 // Capas
 let showCables = true;
 let showMarkers = true;
+let selectedCableIdx = null; // índice del cable resaltado en el plano
 
 const MARKER_TYPES = {
   data: { short: 'RJ45', label: 'Toma RJ45', color: '#2563eb' },
@@ -2323,18 +2334,38 @@ function renderDraw() {
 
   // Cables guardados
   if (showCables) {
+    const hasSel = selectedCableIdx !== null && selectedCableIdx < cables.length;
+
     // Paso 1: dibujar solo las líneas
-    cables.forEach(cable => {
+    cables.forEach((cable, ci) => {
       if (cable.points.length < 2) return;
+      const isSel = hasSel && ci === selectedCableIdx;
+      const isOther = hasSel && !isSel;
+
       const c0 = toCvs(cable.points[0].x, cable.points[0].y);
+      drawCtx.save();
+      drawCtx.globalAlpha = isOther ? 0.2 : 1;
+
+      if (isSel) {
+        // Halo blanco detrás para contraste
+        drawCtx.beginPath();
+        drawCtx.moveTo(c0.x, c0.y);
+        cable.points.forEach(p => { const c = toCvs(p.x, p.y); drawCtx.lineTo(c.x, c.y); });
+        drawCtx.strokeStyle = 'white';
+        drawCtx.lineWidth = 9;
+        drawCtx.lineJoin = 'round'; drawCtx.lineCap = 'round';
+        drawCtx.stroke();
+      }
+
       drawCtx.beginPath();
       drawCtx.moveTo(c0.x, c0.y);
       cable.points.forEach(p => { const c = toCvs(p.x, p.y); drawCtx.lineTo(c.x, c.y); });
       drawCtx.strokeStyle = cable.color;
-      drawCtx.lineWidth = 3;
+      drawCtx.lineWidth = isSel ? 6 : 3;
       drawCtx.lineJoin = 'round';
       drawCtx.lineCap = 'round';
       drawCtx.stroke();
+      drawCtx.restore();
     });
 
     // Paso 2: dibujar etiquetas con detección de colisiones
@@ -2342,7 +2373,9 @@ function renderDraw() {
     const FS = 11, PAD_X = 5, PAD_Y = 3;
     drawCtx.font = `bold ${FS}px sans-serif`;
 
-    cables.forEach(cable => {
+    cables.forEach((cable, ci) => {
+      const isOther = hasSel && ci !== selectedCableIdx;
+      if (isOther) return; // ocultar etiquetas de cables no seleccionados
       if (cable.points.length < 2 || !cable.name) return;
       // Punto medio del cable (canvas coords)
       const mid = cable.points[Math.floor(cable.points.length / 2)];
@@ -2881,7 +2914,7 @@ function applyFloor(idx) {
   cables = (f.cables || []).map(c => ({...c, points: [...c.points]}));
   markers = [...(f.markers || [])];
   offsetX = f.offsetX || 0; offsetY = f.offsetY || 0; zoomLevel = f.zoomLevel || 1;
-  currentPoints = []; drawingActive = false; _setFabVisibility(false);
+  currentPoints = []; drawingActive = false; _setFabVisibility(false); selectedCableIdx = null;
   // Cancelar tap pendiente para evitar añadir puntos a la planta equivocada
   if (_tapTimer) { clearTimeout(_tapTimer); _tapTimer = null; }
   _ptrs.clear(); _pinchDist = null;
@@ -3058,6 +3091,12 @@ function cableTotal(c) {
   return (c.meters || 0) + (c.extraDrop || 0) + (c.extraSlack || 0);
 }
 
+function selectCable(idx) {
+  selectedCableIdx = (selectedCableIdx === idx) ? null : idx;
+  updateCableList();
+  renderDraw();
+}
+
 function updateCableList() {
   const list = document.getElementById('cableList');
   if (cables.length === 0) {
@@ -3076,12 +3115,12 @@ function updateCableList() {
       : '';
     return `
     <li class="cable-item" id="cable-item-${i}">
-      <div class="cable-row">
+      <div class="cable-row${selectedCableIdx === i ? ' selected' : ''}" onclick="selectCable(${i})">
         <span class="cable-color" style="background:${c.color}"></span>
         <span class="cable-name" id="cable-name-${i}">${c.name}</span>
         <span class="cable-meters" id="cable-meters-${i}">${withMargin.toFixed(2)} m</span>
-        <button class="cable-rename" onclick="startRenameCable(${i})" title="Renombrar">✏️</button>
-        <button class="cable-expand${hasExtras ? ' open' : ''}" id="expand-btn-${i}" onclick="toggleExtras(${i})" title="Metros extra">▾</button>
+        <button class="cable-rename" onclick="event.stopPropagation();startRenameCable(${i})" title="Renombrar">✏️</button>
+        <button class="cable-expand${hasExtras ? ' open' : ''}" id="expand-btn-${i}" onclick="event.stopPropagation();toggleExtras(${i})" title="Metros extra">▾</button>
         <button class="cable-del" onclick="deleteCable(${i})">✕</button>
       </div>
       <div class="cable-extras${hasExtras ? ' open' : ''}" id="extras-${i}">
