@@ -449,14 +449,21 @@
       padding: 0 0 0 3px; font-size: 0.68rem; opacity: 0.75; line-height: 1;
     }
     .floor-tab-edit:hover { opacity: 1; }
+    .floor-tab-move {
+      background: none; border: none; color: inherit; cursor: pointer;
+      padding: 0 2px; font-size: 0.6rem; opacity: 0.8; line-height: 1;
+    }
+    .floor-tab-move:hover { opacity: 1; }
     .floor-add-btn {
-      display: inline-flex; align-items: center; gap: 4px;
-      padding: 4px 10px;
+      display: inline-flex; align-items: center; justify-content: center;
+      padding: 4px 9px;
       border-radius: 20px;
       border: 1.5px dashed var(--border);
       background: white;
-      font-size: 0.78rem; color: var(--muted); cursor: pointer; white-space: nowrap; flex-shrink: 0;
+      font-size: 1rem; font-weight: bold; color: var(--muted); cursor: pointer;
+      white-space: nowrap; flex-shrink: 0; line-height: 1;
     }
+    #floorAddBtn { margin: 0 4px; }
     .floor-add-btn:hover { border-color: var(--primary); color: var(--primary); }
     .floor-name-edit {
       width: 70px; padding: 2px 6px;
@@ -1484,6 +1491,7 @@
     <!-- Barra superior: plantas (izq) + modo cables/marcadores (der) -->
     <div id="topBar">
       <div id="floorBar"><!-- populated by renderFloorTabs() --></div>
+      <button id="floorAddBtn" class="floor-add-btn" onclick="addFloor()" title="Añadir planta">＋</button>
       <div class="mode-tabs">
         <button class="mode-tab active" id="tab-cables" onclick="switchTab('cables')" title="Cables">✏️</button>
         <button class="mode-tab" id="tab-markers" onclick="switchTab('markers')" title="Marcadores">📍</button>
@@ -2903,13 +2911,19 @@ function finishCable() {
 function renderFloorTabs() {
   const bar = document.getElementById('floorBar');
   if (!bar) return;
-  bar.innerHTML = floors.map((f, i) => `
-    <button class="floor-tab${i === currentFloorIdx ? ' active' : ''}" onclick="floorTabClick(${i})">
+  bar.innerHTML = floors.map((f, i) => {
+    const isActive = i === currentFloorIdx;
+    const canLeft  = isActive && i > 0;
+    const canRight = isActive && i < floors.length - 1;
+    return `
+    <button class="floor-tab${isActive ? ' active' : ''}" onclick="floorTabClick(${i})">
+      ${canLeft  ? `<span class="floor-tab-move" title="Mover izquierda" onclick="event.stopPropagation();moveFloor(-1)">◀</span>` : ''}
       <span>${f.name}</span>
-      ${i === currentFloorIdx ? `<span class="floor-tab-edit" title="Renombrar" onclick="event.stopPropagation();startRenameFloor(${i})">✏</span>` : ''}
+      ${isActive ? `<span class="floor-tab-edit" title="Renombrar" onclick="event.stopPropagation();startRenameFloor(${i})">✏</span>` : ''}
+      ${canRight ? `<span class="floor-tab-move" title="Mover derecha" onclick="event.stopPropagation();moveFloor(1)">▶</span>` : ''}
       ${floors.length > 1 ? `<span class="floor-tab-del" onclick="deleteFloor(event,${i})">✕</span>` : ''}
-    </button>
-  `).join('') + `<button class="floor-add-btn" onclick="addFloor()">+ Planta</button>`;
+    </button>`;
+  }).join('');
 }
 
 function floorTabClick(idx) {
@@ -3053,6 +3067,22 @@ function startRenameFloor(idx) {
     if (e.key === 'Escape') { renderFloorTabs(); }
   });
   input.addEventListener('blur', confirm);
+}
+
+function moveFloor(dir) {
+  const newIdx = currentFloorIdx + dir;
+  if (newIdx < 0 || newIdx >= floors.length) return;
+  saveCurrentFloorState();
+  const tmp = floors[currentFloorIdx];
+  floors[currentFloorIdx] = floors[newIdx];
+  floors[newIdx] = tmp;
+  currentFloorIdx = newIdx;
+  renderFloorTabs();
+  scheduleAutoSave();
+  // Scroll la pestaña activa a la vista
+  const bar = document.getElementById('floorBar');
+  const tabs = bar ? bar.querySelectorAll('.floor-tab') : [];
+  if (tabs[newIdx]) tabs[newIdx].scrollIntoView({ inline: 'nearest', behavior: 'smooth' });
 }
 
 function deleteCable(idx) {
