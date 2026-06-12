@@ -444,6 +444,11 @@
       padding: 0 0 0 2px; font-size: 0.72rem; opacity: 0.7; line-height: 1;
     }
     .floor-tab-del:hover { opacity: 1; }
+    .floor-tab-edit {
+      background: none; border: none; color: inherit; cursor: pointer;
+      padding: 0 0 0 3px; font-size: 0.68rem; opacity: 0.75; line-height: 1;
+    }
+    .floor-tab-edit:hover { opacity: 1; }
     .floor-add-btn {
       display: inline-flex; align-items: center; gap: 4px;
       padding: 4px 10px;
@@ -1936,7 +1941,7 @@ async function _loadPDF(file) {
 
     const page = await pdfDoc.getPage(pageNum);
     // Escalar para obtener buena resolución (2x el tamaño natural)
-    const viewport = page.getViewport({ scale: 2 });
+    const viewport = page.getViewport({ scale: 3 });
     const canvas = document.createElement('canvas');
     canvas.width  = viewport.width;
     canvas.height = viewport.height;
@@ -1974,13 +1979,18 @@ function initCalibCanvas() {
   calibCanvas = document.getElementById('calibCanvas');
   calibCtx = calibCanvas.getContext('2d');
   const wrap = document.getElementById('calibWrap');
-  calibCanvas.width = wrap.clientWidth;
-  calibCanvas.height = wrap.clientHeight;
+  const _DPR = window.devicePixelRatio || 1;
+  const _logW = wrap.clientWidth, _logH = wrap.clientHeight;
+  calibCanvas.width  = _logW * _DPR;
+  calibCanvas.height = _logH * _DPR;
+  calibCanvas.style.width  = _logW + 'px';
+  calibCanvas.style.height = _logH + 'px';
+  calibCtx.scale(_DPR, _DPR);
 
-  const scaleToFit = Math.min(calibCanvas.width / imgW, calibCanvas.height / imgH);
+  const scaleToFit = Math.min(_logW / imgW, _logH / imgH);
   zoomLevel = scaleToFit;
-  offsetX = (calibCanvas.width - imgW * zoomLevel) / 2;
-  offsetY = (calibCanvas.height - imgH * zoomLevel) / 2;
+  offsetX = (_logW - imgW * zoomLevel) / 2;
+  offsetY = (_logH - imgH * zoomLevel) / 2;
 
   renderCalib();
 
@@ -1989,6 +1999,7 @@ function initCalibCanvas() {
   calibCanvas.parentNode.replaceChild(fresh, calibCanvas);
   calibCanvas = fresh;
   calibCtx = calibCanvas.getContext('2d');
+  calibCtx.scale(_DPR, _DPR);
   setTimeout(renderCalib, 0);
 
   calibCanvas.addEventListener('pointerdown',   onCalibPointerDown,   { passive: false });
@@ -2004,7 +2015,7 @@ function toCvs(ix, iy)    { return { x: ix * zoomLevel + offsetX,   y: iy * zoom
 
 function renderCalib() {
   if (!calibCtx || !img) return;
-  calibCtx.clearRect(0, 0, calibCanvas.width, calibCanvas.height);
+  calibCtx.clearRect(0, 0, calibCanvas.clientWidth || calibCanvas.width, calibCanvas.clientHeight || calibCanvas.height);
   calibCtx.drawImage(img, offsetX, offsetY, imgW * zoomLevel, imgH * zoomLevel);
 
   calibPts.forEach((p, i) => {
@@ -2200,8 +2211,9 @@ function drawLoupe(ctx, canvas, cx, cy) {
   const LOUPE_ZOOM = 3;     // multiplicador de ampliación
   const OFFSET_Y = -90;     // desplazamiento vertical (encima del dedo)
 
-  const lx = Math.min(Math.max(cx, LOUPE_R + 4), canvas.width - LOUPE_R - 4);
-  const ly = Math.min(Math.max(cy + OFFSET_Y, LOUPE_R + 4), canvas.height - LOUPE_R - 4);
+  const _lW = canvas.clientWidth || canvas.width, _lH = canvas.clientHeight || canvas.height;
+  const lx = Math.min(Math.max(cx, LOUPE_R + 4), _lW - LOUPE_R - 4);
+  const ly = Math.min(Math.max(cy + OFFSET_Y, LOUPE_R + 4), _lH - LOUPE_R - 4);
 
   // Área fuente centrada en el punto de toque
   const srcR = LOUPE_R / LOUPE_ZOOM;
@@ -2302,13 +2314,18 @@ function initDrawCanvas() {
   drawCanvas = document.getElementById('drawCanvas');
   drawCtx = drawCanvas.getContext('2d');
   const wrap = document.getElementById('drawWrap');
-  drawCanvas.width = wrap.clientWidth;
-  drawCanvas.height = wrap.clientHeight;
+  const _DPR = window.devicePixelRatio || 1;
+  const _logW = wrap.clientWidth, _logH = wrap.clientHeight;
+  drawCanvas.width  = _logW * _DPR;
+  drawCanvas.height = _logH * _DPR;
+  drawCanvas.style.width  = _logW + 'px';
+  drawCanvas.style.height = _logH + 'px';
+  drawCtx.scale(_DPR, _DPR);
 
-  const scaleToFit = Math.min(drawCanvas.width / imgW, drawCanvas.height / imgH);
+  const scaleToFit = Math.min(_logW / imgW, _logH / imgH);
   zoomLevel = scaleToFit;
-  offsetX = (drawCanvas.width - imgW * zoomLevel) / 2;
-  offsetY = (drawCanvas.height - imgH * zoomLevel) / 2;
+  offsetX = (_logW - imgW * zoomLevel) / 2;
+  offsetY = (_logH - imgH * zoomLevel) / 2;
 
   renderDraw();
 
@@ -2317,6 +2334,7 @@ function initDrawCanvas() {
   drawCanvas.parentNode.replaceChild(fresh, drawCanvas);
   drawCanvas = fresh;
   drawCtx = drawCanvas.getContext('2d');
+  drawCtx.scale(_DPR, _DPR);
   // Re-render tras reemplazar
   setTimeout(renderDraw, 0);
 
@@ -2329,7 +2347,7 @@ function initDrawCanvas() {
 
 function renderDraw() {
   if (!drawCtx || !img) return;
-  drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+  drawCtx.clearRect(0, 0, drawCanvas.clientWidth || drawCanvas.width, drawCanvas.clientHeight || drawCanvas.height);
   drawCtx.drawImage(img, offsetX, offsetY, imgW * zoomLevel, imgH * zoomLevel);
 
   // Cables guardados
@@ -2888,6 +2906,7 @@ function renderFloorTabs() {
   bar.innerHTML = floors.map((f, i) => `
     <button class="floor-tab${i === currentFloorIdx ? ' active' : ''}" onclick="floorTabClick(${i})">
       <span>${f.name}</span>
+      ${i === currentFloorIdx ? `<span class="floor-tab-edit" title="Renombrar" onclick="event.stopPropagation();startRenameFloor(${i})">✏</span>` : ''}
       ${floors.length > 1 ? `<span class="floor-tab-del" onclick="deleteFloor(event,${i})">✕</span>` : ''}
     </button>
   `).join('') + `<button class="floor-add-btn" onclick="addFloor()">+ Planta</button>`;
@@ -3027,6 +3046,7 @@ function startRenameFloor(idx) {
     const newName = input.value.trim() || currentName;
     floors[idx].name = newName;
     renderFloorTabs();
+    scheduleAutoSave();
   }
   input.addEventListener('keydown', e => {
     if (e.key === 'Enter') { e.preventDefault(); confirm(); }
@@ -3376,10 +3396,11 @@ function getCanvas() {
 function resetZoom() {
   const canvas = getCanvas();
   if (!canvas || !img) return;
-  const scaleToFit = Math.min(canvas.width / imgW, canvas.height / imgH);
+  const _cW = canvas.clientWidth || canvas.width, _cH = canvas.clientHeight || canvas.height;
+  const scaleToFit = Math.min(_cW / imgW, _cH / imgH);
   zoomLevel = scaleToFit;
-  offsetX = (canvas.width - imgW * zoomLevel) / 2;
-  offsetY = (canvas.height - imgH * zoomLevel) / 2;
+  offsetX = (_cW - imgW * zoomLevel) / 2;
+  offsetY = (_cH - imgH * zoomLevel) / 2;
   if (currentStep === 2) renderCalib();
   else renderDraw();
   toast('Vista restablecida');
@@ -4171,8 +4192,9 @@ function setCamAngleFromCanvas(clientX, clientY) {
   const rect = drawCanvas.getBoundingClientRect();
   const camCvs = toCvs(_camModalMarker.x, _camModalMarker.y);
   // Escalar coordenadas internas del canvas a píxeles CSS de pantalla
-  const scaleX = rect.width  / drawCanvas.width;
-  const scaleY = rect.height / drawCanvas.height;
+  // Usamos clientWidth (píxeles lógicos) porque el ctx ya está escalado por DPR
+  const scaleX = rect.width  / (drawCanvas.clientWidth  || drawCanvas.width);
+  const scaleY = rect.height / (drawCanvas.clientHeight || drawCanvas.height);
   const camScreenX = rect.left + camCvs.x * scaleX;
   const camScreenY = rect.top  + camCvs.y * scaleY;
   const dx = clientX - camScreenX;
