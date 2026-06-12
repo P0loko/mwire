@@ -1533,7 +1533,11 @@
 
     <!-- Toolbar marcadores: todo en una fila -->
     <div class="toolbar" id="toolbar-markers" style="display:none;gap:6px;padding:6px 8px;flex-wrap:wrap;">
-      <input class="cable-name-input" id="markerNameInput" placeholder="Nombre marcador..." maxlength="20" style="flex:1;min-width:0;" />
+      <input class="cable-name-input" id="markerNameInput" placeholder="Nombre marcador..." maxlength="20" style="flex:1;min-width:0;"
+        onfocus="if(this.value===''){}else{this.select()}" />
+      <input type="number" id="markerQtyInput" min="1" max="20" value="1"
+        style="width:44px;text-align:center;border:1.5px solid var(--border);border-radius:8px;padding:4px 4px;font-size:0.82rem;flex-shrink:0;"
+        title="Cantidad de tomas" onfocus="this.select()" />
       <button class="btn-del-marker" id="btnDelMarker" onclick="toggleDeleteMarker()" style="flex-shrink:0;">🗑</button>
       <div style="display:flex;gap:5px;width:100%;overflow-x:auto;scrollbar-width:none;">
         <button class="marker-btn selected" data-mtype="data" onclick="selectMarkerType(this)"><span class="mtype-badge" style="background:#2563eb">RJ45</span><span>Toma</span></button>
@@ -1851,6 +1855,8 @@ let activeTab = 'cables';
 let showCables = true;
 let showMarkers = true;
 let selectedCableIdx = null; // índice del cable resaltado en el plano
+let _currentProjectId   = null; // ID del proyecto cargado (null = nuevo sin guardar)
+let _currentProjectName = null; // nombre del proyecto cargado
 
 const MARKER_TYPES = {
   data: { short: 'RJ45', label: 'Toma RJ45', color: '#2563eb' },
@@ -2574,6 +2580,19 @@ function drawMarkerOnCanvas(ctx, type, cx, cy, name, marker) {
   const bx = cx - bw / 2;
   const by = cy - bh / 2;
 
+  // Anillo exterior en modo cables → indica que el marcador es trazable
+  if ((type === 'data' || type === 'wifi') && activeTab === 'cables' && !drawingActive) {
+    ctx.save();
+    ctx.strokeStyle = mt.color;
+    ctx.lineWidth = 1.5;
+    ctx.globalAlpha = 0.45;
+    ctx.setLineDash([3, 3]);
+    roundRect(ctx, bx - 4, by - 4, bw + 8, bh + 8, br + 3);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+  }
+
   // Sombra
   ctx.save();
   ctx.shadowColor = 'rgba(0,0,0,0.22)';
@@ -2753,6 +2772,13 @@ function onDrawPointerUp(e) {
       if (activeTab === 'cables' && drawingActive) {
         currentPoints.push(imgPt);
         renderDraw();
+      } else if (activeTab === 'cables' && !drawingActive) {
+        // Tap en marcador RJ45/AP → iniciar trazado desde ahí con su nombre
+        const tappedMarker = markers.find(m =>
+          (m.type === 'data' || m.type === 'wifi') &&
+          Math.hypot(m.x - imgPt.x, m.y - imgPt.y) < 28 / zoomLevel
+        );
+        if (tappedMarker) startCableFromMarker(tappedMarker);
       } else if (activeTab === 'markers') {
         if (deleteMarkerMode) {
           const HIT = 20 / zoomLevel;
@@ -2768,12 +2794,24 @@ function onDrawPointerUp(e) {
           // Cualquier otro marcador → editar nombre
           const tappedMarker = checkAnyMarkerTap(imgPt);
           if (tappedMarker) { openMarkerEditModal(tappedMarker); return; }
-          const mName = document.getElementById('markerNameInput').value.trim();
-          if (mName && markers.some(m => m.name && m.name.toLowerCase() === mName.toLowerCase())) {
-            toast(`Ya existe un marcador llamado "${mName}"`); return;
+          const mNameBase = document.getElementById('markerNameInput').value.trim();
+          const supportsQty = selectedMarkerType === 'data' || selectedMarkerType === 'wifi';
+          const qty = supportsQty ? Math.max(1, Math.min(20, parseInt(document.getElementById('markerQtyInput')?.value) || 1)) : 1;
+          let currentMName = mNameBase;
+          const addedNames = [];
+          for (let qi = 0; qi < qty; qi++) {
+            // Auto-incrementar si ya existe
+            while (currentMName && markers.some(m => m.name && m.name.toLowerCase() === currentMName.toLowerCase())) {
+              currentMName = autoIncrementName(currentMName);
+            }
+            markers.push({ id: Date.now() + qi, type: selectedMarkerType, x: imgPt.x, y: imgPt.y, name: currentMName });
+            addedNames.push(currentMName);
+            if (currentMName) currentMName = autoIncrementName(currentMName);
           }
-          markers.push({ id: Date.now(), type: selectedMarkerType, x: imgPt.x, y: imgPt.y, name: mName });
-          if (mName) document.getElementById('markerNameInput').value = autoIncrementName(mName);
+          // Avanzar el input al siguiente nombre
+          if (mNameBase) document.getElementById('markerNameInput').value = currentMName || autoIncrementName(mNameBase);
+          // Toast informativo
+          if (qty > 1) toast(`✔ ${qty} tomas añadidas`);
           // Hint contextual la primera vez que se coloca un rack o cámara
           if (selectedMarkerType === 'rack' && !localStorage.getItem('mwire_hint_rack')) {
             localStorage.setItem('mwire_hint_rack', '1');
@@ -2812,6 +2850,30 @@ function onDrawWheel(e) {
 function _setFabVisibility(visible) {
   const row = document.getElementById('fabRow');
   if (row) row.style.display = visible ? 'flex' : 'none';
+}
+
+function startCableFromMarker(marker) {
+  // Pre-rellenar el nombre del cable con el nombre de la toma (o etiqueta por defecto)
+  const nameInput = document.getElementById('cableNameInput');
+  const baseName = marker.name || MARKER_TYPES[marker.type]?.label || 'Cable';
+  // Auto-incrementar si ya existe un cable con ese nombre
+  let usedName = baseName;
+  while (cables.some(c => c.name.toLowerCase() === usedName.toLowerCase())) {
+    usedName = autoIncrementName(usedName);
+  }
+  nameInput.value = usedName;
+
+  // Activar trazado
+  drawingActive = true;
+  _setFabVisibility(true);
+  const btn = document.getElementById('btnToggleDraw');
+  btn.textContent = '⏹ Detener';
+  btn.style.background = '#fef08a';
+
+  // Primer punto = posición exacta del marcador
+  currentPoints = [{ x: marker.x, y: marker.y }];
+  renderDraw();
+  toast(`Trazando desde "${baseName}" — toca el plano para continuar`);
 }
 
 function toggleDrawing() {
@@ -3345,6 +3407,9 @@ function selectMarkerType(el) {
   document.querySelectorAll('.marker-btn').forEach(b => b.classList.remove('selected'));
   el.classList.add('selected');
   selectedMarkerType = el.dataset.mtype;
+  // Mostrar selector de cantidad solo para tipos que admiten múltiples (no rack/cam)
+  const qtyInput = document.getElementById('markerQtyInput');
+  if (qtyInput) qtyInput.style.display = (selectedMarkerType === 'rack' || selectedMarkerType === 'cam') ? 'none' : '';
   // Salir de modo borrar al seleccionar un tipo
   if (deleteMarkerMode) toggleDeleteMarker();
 }
@@ -3538,6 +3603,12 @@ function closeDrawer() {
 // ═══════════════════════════════════════════════
 function openSaveModal() {
   if (!img) { toast('No hay ningún proyecto abierto'); return; }
+  // Proyecto ya guardado → sobreescribir directamente sin pedir nombre
+  if (_currentProjectId !== null) {
+    closeDrawer();
+    saveProject();
+    return;
+  }
   closeDrawer();
   const input = document.getElementById('projectNameInput');
   input.value = '';
@@ -4378,15 +4449,20 @@ async function restoreAutoSave(snap) {
 
 async function saveProject() {
   if (!img) { toast('No hay ningún proyecto abierto'); closeSaveModal(); return; }
-  const nameInput = document.getElementById('projectNameInput');
-  const name = nameInput.value.trim() || `Proyecto ${new Date().toLocaleDateString('es-ES')}`;
 
   // Guardar estado de la planta activa
   saveCurrentFloorState();
 
+  // Determinar ID y nombre: reusa los existentes si es un proyecto ya guardado
+  const isOverwrite = _currentProjectId !== null;
+  const id   = isOverwrite ? _currentProjectId : Date.now();
+  const name = isOverwrite
+    ? _currentProjectName
+    : (document.getElementById('projectNameInput')?.value.trim() || `Proyecto ${new Date().toLocaleDateString('es-ES')}`);
+
   const thumb = generateThumb(img, 120, 90);
   const project = {
-    id: Date.now(),
+    id,
     name,
     date: new Date().toLocaleDateString('es-ES', { day:'2-digit', month:'short', year:'numeric' }),
     thumb,
@@ -4402,7 +4478,9 @@ async function saveProject() {
 
   try {
     await idbPut(project);
-    await clearAutoSave(); // proyecto guardado → ya no hace falta el autosave
+    _currentProjectId   = id;   // recordar para futuros guardados
+    _currentProjectName = name;
+    await clearAutoSave();
     closeSaveModal();
     toast(`✔ "${name}" guardado`);
   } catch(e) {
@@ -4448,6 +4526,10 @@ async function loadProject(id) {
     }];
     currentFloorIdx = 0;
   }
+
+  // Recordar proyecto activo para que "Guardar" sobreescriba sin pedir nombre
+  _currentProjectId   = p.id;
+  _currentProjectName = p.name;
 
   // Restaurar margen
   if (p.margin !== undefined) {
@@ -4518,6 +4600,8 @@ function newProject() {
 }
 
 function doNewProject() {
+  _currentProjectId   = null;
+  _currentProjectName = null;
   floors = [createFloor('Planta 1')];
   currentFloorIdx = 0;
   img = null; imgW = 0; imgH = 0;
