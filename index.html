@@ -1563,7 +1563,13 @@
         <button class="layer-strip-btn on-markers" id="layerBtnMarkers" onclick="toggleLayer('markers')">📍</button>
         <span style="font-size:0.8rem;color:var(--muted);margin-left:4px;">Total</span>
         <span id="totalMeters" style="font-weight:700;color:var(--primary);font-size:1rem;">0.0 m</span>
-        <span id="drawerArrow" onclick="toggleBottomDrawer()" style="margin-left:auto;font-size:1rem;color:var(--muted);transition:transform .2s;padding:4px 8px;cursor:pointer;">▲</span>
+        <span style="margin-left:auto;display:flex;gap:4px;align-items:center;">
+          <button id="btnUndo" onclick="historyUndo()" title="Deshacer" disabled
+            style="background:none;border:1.5px solid var(--border);border-radius:8px;padding:3px 7px;font-size:0.9rem;cursor:pointer;opacity:0.35;line-height:1;">↩</button>
+          <button id="btnRedo" onclick="historyRedo()" title="Rehacer" disabled
+            style="background:none;border:1.5px solid var(--border);border-radius:8px;padding:3px 7px;font-size:0.9rem;cursor:pointer;opacity:0.35;line-height:1;">↪</button>
+          <span id="drawerArrow" onclick="toggleBottomDrawer()" style="font-size:1rem;color:var(--muted);transition:transform .2s;padding:4px 8px;cursor:pointer;">▲</span>
+        </span>
       </div>
       <!-- Contenido plegable -->
       <div id="drawerContent">
@@ -1857,6 +1863,9 @@ let showMarkers = true;
 let selectedCableIdx = null; // índice del cable resaltado en el plano
 let _currentProjectId   = null; // ID del proyecto cargado (null = nuevo sin guardar)
 let _currentProjectName = null; // nombre del proyecto cargado
+const MAX_HISTORY = 30;
+let _undoStack = [];
+let _redoStack = [];
 
 const MARKER_TYPES = {
   data: { short: 'RJ45', label: 'Toma RJ45', color: '#2563eb' },
@@ -2508,9 +2517,26 @@ function renderDraw() {
   if (showMarkers) {
     // Primero las visiones de cámara (detrás de los badges)
     markers.forEach(m => { if (m.type === 'cam') drawCameraVision(drawCtx, m); });
-    markers.forEach(m => {
-      const c = toCvs(m.x, m.y);
-      drawMarkerOnCanvas(drawCtx, m.type, c.x, c.y, m.name, m);
+    // Agrupar marcadores apilados (misma posición ±10px en imagen)
+    const STACK_THR = 10 / Math.max(zoomLevel, 0.01);
+    const groups = []; // [{lead, count}]
+    const assigned = new Set();
+    markers.forEach((m, i) => {
+      if (assigned.has(i)) return;
+      let grp = { lead: m, count: 1 };
+      markers.forEach((m2, j) => {
+        if (j <= i || assigned.has(j)) return;
+        if (Math.hypot(m.x - m2.x, m.y - m2.y) < STACK_THR) {
+          grp.count++;
+          assigned.add(j);
+        }
+      });
+      assigned.add(i);
+      groups.push(grp);
+    });
+    groups.forEach(({ lead, count }) => {
+      const c = toCvs(lead.x, lead.y);
+      drawMarkerOnCanvas(drawCtx, lead.type, c.x, c.y, lead.name, lead, count > 1 ? count : null);
     });
   }
 }
@@ -2567,7 +2593,7 @@ function drawCameraVision(ctx, m) {
   ctx.restore();
 }
 
-function drawMarkerOnCanvas(ctx, type, cx, cy, name, marker) {
+function drawMarkerOnCanvas(ctx, type, cx, cy, name, marker, stackCount) {
   const mt = MARKER_TYPES[type] || MARKER_TYPES.data;
 
   // Medir texto para calcular ancho de la pastilla
@@ -2650,6 +2676,23 @@ function drawMarkerOnCanvas(ctx, type, cx, cy, name, marker) {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText('✎', ex, ey + 0.5);
+    ctx.restore();
+  }
+
+  // Badge ×N cuando hay varias tomas apiladas en la misma posición
+  if (stackCount && stackCount > 1) {
+    const label = '×' + stackCount;
+    ctx.save();
+    ctx.font = 'bold 9px sans-serif';
+    const sw = ctx.measureText(label).width + 7;
+    const sx = bx - 2, sy = by - 11;
+    roundRect(ctx, sx, sy, sw, 11, 3);
+    ctx.fillStyle = '#f59e0b';
+    ctx.fill();
+    ctx.fillStyle = 'white';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, sx + 3, sy + 5.5);
     ctx.restore();
   }
 
@@ -2783,7 +2826,7 @@ function onDrawPointerUp(e) {
         if (deleteMarkerMode) {
           const HIT = 20 / zoomLevel;
           const idx = markers.findIndex(m => Math.hypot(m.x - imgPt.x, m.y - imgPt.y) < HIT);
-          if (idx !== -1) { markers.splice(idx, 1); renderDraw(); scheduleAutoSave(); }
+          if (idx !== -1) { pushHistory(); markers.splice(idx, 1); renderDraw(); scheduleAutoSave(); }
         } else {
           // Si toca un marcador RACK existente → abrir diseñador
           const tappedRack = checkRackMarkerTap(imgPt);
@@ -2794,6 +2837,7 @@ function onDrawPointerUp(e) {
           // Cualquier otro marcador → editar nombre
           const tappedMarker = checkAnyMarkerTap(imgPt);
           if (tappedMarker) { openMarkerEditModal(tappedMarker); return; }
+          pushHistory();
           const mNameBase = document.getElementById('markerNameInput').value.trim();
           const supportsQty = selectedMarkerType === 'data' || selectedMarkerType === 'wifi';
           const qty = supportsQty ? Math.max(1, Math.min(20, parseInt(document.getElementById('markerQtyInput')?.value) || 1)) : 1;
@@ -2928,6 +2972,7 @@ function autoIncrementName(name) {
 
 function finishCable() {
   if (currentPoints.length < 2) { toast('Necesitas al menos 2 puntos'); return; }
+  pushHistory();
 
   let meters = 0;
   for (let i = 1; i < currentPoints.length; i++) {
@@ -3053,6 +3098,7 @@ function applyFloor(idx) {
 }
 
 function addFloor() {
+  pushHistory();
   saveCurrentFloorState();
   const newFloor = createFloor(`Planta ${floors.length + 1}`);
   floors.push(newFloor);
@@ -3096,6 +3142,7 @@ function deleteFloor(event, idx) {
 }
 
 function doDeleteFloor(idx) {
+  pushHistory();
   const name = floors[idx].name;
   floors.splice(idx, 1);
   let newIdx = currentFloorIdx;
@@ -3138,6 +3185,7 @@ function startRenameFloor(idx) {
 function moveFloor(dir) {
   const newIdx = currentFloorIdx + dir;
   if (newIdx < 0 || newIdx >= floors.length) return;
+  pushHistory();
   saveCurrentFloorState();
   const tmp = floors[currentFloorIdx];
   floors[currentFloorIdx] = floors[newIdx];
@@ -3152,6 +3200,7 @@ function moveFloor(dir) {
 }
 
 function deleteCable(idx) {
+  pushHistory();
   cables.splice(idx, 1);
   updateCableList();
   renderDraw();
@@ -4220,6 +4269,7 @@ function closeMarkerEditModal() {
 
 function confirmMarkerEditModal() {
   if (!_editingMarker) return;
+  pushHistory();
   _editingMarker.name = document.getElementById('markerEditInput').value.trim();
   closeMarkerEditModal();
   renderDraw(); scheduleAutoSave();
@@ -4227,6 +4277,7 @@ function confirmMarkerEditModal() {
 
 function deleteMarkerFromModal() {
   if (!_editingMarker) return;
+  pushHistory();
   const idx = markers.indexOf(_editingMarker);
   if (idx !== -1) markers.splice(idx, 1);
   closeMarkerEditModal();
@@ -4333,6 +4384,67 @@ function confirmCamModal() {
   _camSnapshot = null;
   renderDraw();
   scheduleAutoSave();
+}
+
+// ═══════════════════════════════════════════════
+//  HISTORIAL UNDO / REDO
+// ═══════════════════════════════════════════════
+function _snapshotState() {
+  saveCurrentFloorState(); // vuelca cables/markers en memoria al array floors
+  return {
+    floors: floors.map(f => ({
+      ...f,
+      cables:   f.cables.map(c => ({ ...c, points: [...c.points] })),
+      markers:  f.markers.map(m => ({ ...m })),
+      calibPts: [...(f.calibPts || [])]
+    })),
+    currentFloorIdx
+  };
+}
+
+function _applySnapshot(snap) {
+  floors = snap.floors;
+  currentFloorIdx = Math.min(snap.currentFloorIdx, snap.floors.length - 1);
+  const f = floors[currentFloorIdx];
+  cables   = (f.cables   || []).map(c => ({ ...c, points: [...c.points] }));
+  markers  = [...(f.markers  || [])];
+  calibPts = [...(f.calibPts || [])];
+  currentPoints = []; drawingActive = false; _setFabVisibility(false);
+  selectedCableIdx = null;
+  updateCableList();
+  renderFloorTabs();
+  renderDraw();
+  scheduleAutoSave();
+}
+
+function pushHistory() {
+  _undoStack.push(_snapshotState());
+  if (_undoStack.length > MAX_HISTORY) _undoStack.shift();
+  _redoStack = [];
+  _updateUndoRedoBtns();
+}
+
+function historyUndo() {
+  if (_undoStack.length === 0) return;
+  _redoStack.push(_snapshotState());
+  _applySnapshot(_undoStack.pop());
+  _updateUndoRedoBtns();
+  toast('↩ Deshecho');
+}
+
+function historyRedo() {
+  if (_redoStack.length === 0) return;
+  _undoStack.push(_snapshotState());
+  _applySnapshot(_redoStack.pop());
+  _updateUndoRedoBtns();
+  toast('↪ Rehecho');
+}
+
+function _updateUndoRedoBtns() {
+  const u = document.getElementById('btnUndo');
+  const r = document.getElementById('btnRedo');
+  if (u) { u.disabled = _undoStack.length === 0; u.style.opacity = _undoStack.length === 0 ? '0.35' : '1'; }
+  if (r) { r.disabled = _redoStack.length === 0; r.style.opacity = _redoStack.length === 0 ? '0.35' : '1'; }
 }
 
 // ── AUTOGUARDADO ──────────────────────────────────────────────────
@@ -4530,6 +4642,7 @@ async function loadProject(id) {
   // Recordar proyecto activo para que "Guardar" sobreescriba sin pedir nombre
   _currentProjectId   = p.id;
   _currentProjectName = p.name;
+  _undoStack = []; _redoStack = []; _updateUndoRedoBtns();
 
   // Restaurar margen
   if (p.margin !== undefined) {
@@ -4602,6 +4715,7 @@ function newProject() {
 function doNewProject() {
   _currentProjectId   = null;
   _currentProjectName = null;
+  _undoStack = []; _redoStack = []; _updateUndoRedoBtns();
   floors = [createFloor('Planta 1')];
   currentFloorIdx = 0;
   img = null; imgW = 0; imgH = 0;
