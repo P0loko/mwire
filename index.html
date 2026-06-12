@@ -900,7 +900,11 @@
       padding: 5px 8px;
       flex: 1;
       overflow-x: auto;
+      overflow-y: hidden;
       scrollbar-width: none;
+      touch-action: pan-x;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior-x: contain;
     }
     #floorBar::-webkit-scrollbar { display: none; }
     .mode-tabs {
@@ -3439,7 +3443,7 @@ function resetZoom() {
 // Bloquear pull-to-refresh — solo si NO es un elemento con scroll propio
 document.addEventListener('touchmove', e => {
   if (e.touches.length !== 1) return;
-  if (e.target.closest('.scroll-panel, .project-list, #drawerContent, .drawer, .save-modal-box, #rackModal, #camModal, #cropModal')) return;
+  if (e.target.closest('.scroll-panel, .project-list, #drawerContent, .drawer, .save-modal-box, #rackModal, #camModal, #cropModal, #floorBar')) return;
   if (document.scrollingElement?.scrollTop === 0) e.preventDefault();
 }, { passive: false });
 
