@@ -1358,6 +1358,27 @@
   </div>
 </div>
 
+<!-- MODAL TOMAS APILADAS -->
+<div id="stackModal" style="position:fixed;inset:0;z-index:400;background:rgba(0,0,0,0.4);align-items:flex-end;justify-content:center;" onclick="if(event.target===this)closeStackModal();">
+  <div style="background:white;border-radius:16px 16px 0 0;width:100%;max-width:480px;max-height:70vh;display:flex;flex-direction:column;padding-bottom:env(safe-area-inset-bottom);">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px 10px;border-bottom:1px solid var(--border);">
+      <span style="font-weight:700;font-size:1rem;">📍 Tomas en este punto</span>
+      <button onclick="closeStackModal()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--muted);">✕</button>
+    </div>
+    <div id="stackModalBody" style="overflow-y:auto;flex:1;padding:8px 0;"></div>
+  </div>
+</div>
+<style>
+  #stackModal { display:none; }
+  #stackModal.open { display:flex; }
+  .stack-item { display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--border); }
+  .stack-item:last-child { border-bottom:none; }
+  .stack-item-info { flex:1;min-width:0; }
+  .stack-item-name { font-weight:700;font-size:0.9rem;color:var(--text); }
+  .stack-item-cable { font-size:0.78rem;color:var(--muted);margin-top:2px; }
+  .stack-item-cable.traced { color:#16a34a;font-weight:600; }
+</style>
+
 <!-- MODAL GUARDAR PROYECTO -->
 <div class="save-modal" id="saveModal">
   <div class="save-modal-box">
@@ -1538,7 +1559,9 @@
       <input type="number" id="markerQtyInput" min="1" max="20" value="1"
         style="width:44px;text-align:center;border:1.5px solid var(--border);border-radius:8px;padding:4px 4px;font-size:0.82rem;flex-shrink:0;"
         title="Cantidad de tomas" onfocus="this.select()" />
-      <button class="btn-del-marker" id="btnDelMarker" onclick="toggleDeleteMarker()" style="flex-shrink:0;">🗑</button>
+      <button class="btn-del-marker" id="btnDelMarker" onclick="toggleDeleteMarker()" style="flex-shrink:0;" title="Seleccionar marcadores para borrar">🗑</button>
+      <button id="btnDeleteSelected" onclick="deleteSelectedMarkers()"
+        style="display:none;flex-shrink:0;padding:5px 10px;border-radius:8px;border:2px solid var(--danger);background:#fef2f2;color:var(--danger);font-size:0.78rem;cursor:pointer;font-weight:600;">Borrar <span id="deleteSelectedCount">0</span></button>
       <div style="display:flex;gap:5px;width:100%;overflow-x:auto;scrollbar-width:none;">
         <button class="marker-btn selected" data-mtype="data" onclick="selectMarkerType(this)"><span class="mtype-badge" style="background:#2563eb">RJ45</span><span>Toma</span></button>
         <button class="marker-btn" data-mtype="wifi"          onclick="selectMarkerType(this)"><span class="mtype-badge" style="background:#16a34a">AP</span><span>WiFi</span></button>
@@ -1855,6 +1878,8 @@ let margin = 0.10;
 let markers = [];          // [{id, type, x, y, name}] en coords de imagen
 let selectedMarkerType = 'data';
 let deleteMarkerMode = false;
+let _selectedMarkerIds = new Set(); // IDs de marcadores seleccionados para borrar
+let _stackModalMarkers = [];        // marcadores del grupo abierto en el modal de tomas
 let activeTab = 'cables';
 
 // Capas
@@ -2696,18 +2721,26 @@ function drawMarkerOnCanvas(ctx, type, cx, cy, name, marker, stackCount) {
     ctx.restore();
   }
 
-  // Modo borrar: círculo rojo con ✕ en esquina superior derecha
+  // Modo selección: indicador en esquina superior derecha
   if (deleteMarkerMode) {
-    const dx = bx + bw, dy = by;
+    const isSelected = marker && _selectedMarkerIds.has(marker.id);
+    const dx = bx + bw + 2, dy = by - 2;
+    ctx.save();
     ctx.beginPath();
     ctx.arc(dx, dy, 7, 0, Math.PI * 2);
-    ctx.fillStyle = '#dc2626';
+    ctx.fillStyle = isSelected ? '#dc2626' : 'white';
+    ctx.strokeStyle = '#dc2626';
+    ctx.lineWidth = 2;
     ctx.fill();
-    ctx.fillStyle = 'white';
-    ctx.font = 'bold 9px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('✕', dx, dy);
+    ctx.stroke();
+    if (isSelected) {
+      ctx.fillStyle = 'white';
+      ctx.font = 'bold 9px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('✓', dx, dy + 0.5);
+    }
+    ctx.restore();
   }
 }
 
@@ -2816,17 +2849,24 @@ function onDrawPointerUp(e) {
         currentPoints.push(imgPt);
         renderDraw();
       } else if (activeTab === 'cables' && !drawingActive) {
-        // Tap en marcador RJ45/AP → iniciar trazado desde ahí con su nombre
-        const tappedMarker = markers.find(m =>
+        // Tap en marcador RJ45/AP → iniciar trazado (o mostrar menú si hay varios apilados)
+        const group = markers.filter(m =>
           (m.type === 'data' || m.type === 'wifi') &&
           Math.hypot(m.x - imgPt.x, m.y - imgPt.y) < 28 / zoomLevel
         );
-        if (tappedMarker) startCableFromMarker(tappedMarker);
+        if (group.length === 1) startCableFromMarker(group[0]);
+        else if (group.length > 1) openStackModal(group, true);
       } else if (activeTab === 'markers') {
         if (deleteMarkerMode) {
-          const HIT = 20 / zoomLevel;
-          const idx = markers.findIndex(m => Math.hypot(m.x - imgPt.x, m.y - imgPt.y) < HIT);
-          if (idx !== -1) { pushHistory(); markers.splice(idx, 1); renderDraw(); scheduleAutoSave(); }
+          const HIT = 22 / zoomLevel;
+          // Seleccionar/deseleccionar TODOS los marcadores en ese punto (grupo apilado)
+          const tapped = markers.filter(m => Math.hypot(m.x - imgPt.x, m.y - imgPt.y) < HIT);
+          if (tapped.length > 0) {
+            const allSelected = tapped.every(m => _selectedMarkerIds.has(m.id));
+            tapped.forEach(m => allSelected ? _selectedMarkerIds.delete(m.id) : _selectedMarkerIds.add(m.id));
+            _updateDeleteSelectedBtn();
+            renderDraw();
+          }
         } else {
           // Si toca un marcador RACK existente → abrir diseñador
           const tappedRack = checkRackMarkerTap(imgPt);
@@ -2834,7 +2874,10 @@ function onDrawPointerUp(e) {
           // Si toca una cámara → abrir configuración de visión
           const tappedCam = checkCamMarkerTap(imgPt);
           if (tappedCam) { openCamModal(tappedCam); return; }
-          // Cualquier otro marcador → editar nombre
+          // Grupo de tomas data/wifi → modal de tomas
+          const grp = checkMarkerGroup(imgPt).filter(m => m.type === 'data' || m.type === 'wifi');
+          if (grp.length > 1) { openStackModal(grp, false); return; }
+          // Marcador único → editar nombre
           const tappedMarker = checkAnyMarkerTap(imgPt);
           if (tappedMarker) { openMarkerEditModal(tappedMarker); return; }
           pushHistory();
@@ -2961,7 +3004,7 @@ function undoLastPoint() {
 // Incrementa el número al final del nombre: "D1"→"D2", "PL1-AP1"→"PL1-AP2"
 function autoIncrementName(name) {
   const m = name.match(/^(.*?)(\d+)$/);
-  if (!m) return name;
+  if (!m) return name + '1'; // si no hay número final, añadir 1 para evitar bucle infinito
   const prefix = m[1];
   const num = parseInt(m[2], 10);
   // Mantener ceros: "D01"→"D02", pero "D9"→"D10"
@@ -3059,6 +3102,16 @@ function applyFloor(idx) {
   markers = [...(f.markers || [])];
   offsetX = f.offsetX || 0; offsetY = f.offsetY || 0; zoomLevel = f.zoomLevel || 1;
   currentPoints = []; drawingActive = false; _setFabVisibility(false); selectedCableIdx = null;
+  // Salir del modo borrado al cambiar de planta
+  if (deleteMarkerMode) {
+    deleteMarkerMode = false;
+    _selectedMarkerIds.clear();
+    const btn = document.getElementById('btnDelMarker');
+    if (btn) { btn.classList.remove('active'); btn.textContent = '🗑'; }
+    _updateDeleteSelectedBtn();
+  } else {
+    _selectedMarkerIds.clear();
+  }
   // Cancelar tap pendiente para evitar añadir puntos a la planta equivocada
   if (_tapTimer) { clearTimeout(_tapTimer); _tapTimer = null; }
   _ptrs.clear(); _pinchDist = null;
@@ -3465,19 +3518,43 @@ function selectMarkerType(el) {
 
 function toggleDeleteMarker() {
   deleteMarkerMode = !deleteMarkerMode;
+  _selectedMarkerIds.clear();
   const btn = document.getElementById('btnDelMarker');
   btn.classList.toggle('active', deleteMarkerMode);
-  btn.textContent = deleteMarkerMode ? '✕ Tocando...' : '🗑 Borrar';
-  // Desseleccionar tipo al entrar en modo borrar
+  btn.textContent = deleteMarkerMode ? '✕ Cancelar' : '🗑';
   if (deleteMarkerMode) {
     document.querySelectorAll('.marker-btn').forEach(b => b.classList.remove('selected'));
   } else {
-    // Volver a seleccionar el tipo actual
-    const btn = document.querySelector(`.marker-btn[data-mtype="${selectedMarkerType}"]`);
-    if (btn) btn.classList.add('selected');
+    const mBtn = document.querySelector(`.marker-btn[data-mtype="${selectedMarkerType}"]`);
+    if (mBtn) mBtn.classList.add('selected');
   }
+  _updateDeleteSelectedBtn();
   renderDraw();
-  if (deleteMarkerMode) toast('Toca un marcador para borrarlo');
+  if (deleteMarkerMode) toast('Toca los marcadores que quieras seleccionar');
+}
+
+function _updateDeleteSelectedBtn() {
+  const btn = document.getElementById('btnDeleteSelected');
+  const cnt = document.getElementById('deleteSelectedCount');
+  if (!btn) return;
+  const n = _selectedMarkerIds.size;
+  btn.style.display = (deleteMarkerMode && n > 0) ? '' : 'none';
+  if (cnt) cnt.textContent = n;
+}
+
+function deleteSelectedMarkers() {
+  if (_selectedMarkerIds.size === 0) return;
+  pushHistory();
+  const toDelete = markers.filter(m => _selectedMarkerIds.has(m.id));
+  const namesToDelete = new Set(toDelete.filter(m => m.name).map(m => m.name));
+  markers = markers.filter(m => !_selectedMarkerIds.has(m.id));
+  if (namesToDelete.size > 0) cables = cables.filter(c => !namesToDelete.has(c.name));
+  _selectedMarkerIds.clear();
+  toggleDeleteMarker();
+  updateCableList();
+  renderDraw();
+  scheduleAutoSave();
+  toast(`Borrado${toDelete.length > 1 ? 's ' + toDelete.length + ' marcadores' : ' 1 marcador'}`);
 }
 
 function selectColor(el) {
@@ -3557,7 +3634,7 @@ function resetZoom() {
 // Bloquear pull-to-refresh — solo si NO es un elemento con scroll propio
 document.addEventListener('touchmove', e => {
   if (e.touches.length !== 1) return;
-  if (e.target.closest('.scroll-panel, .project-list, #drawerContent, .drawer, .save-modal-box, #rackModal, #camModal, #cropModal, #floorBar')) return;
+  if (e.target.closest('.scroll-panel, .project-list, #drawerContent, .drawer, .save-modal-box, #rackModal, #camModal, #cropModal, #floorBar, #stackModal')) return;
   if (document.scrollingElement?.scrollTop === 0) e.preventDefault();
 }, { passive: false });
 
@@ -3577,7 +3654,11 @@ window.addEventListener('popstate', () => {
   // Reinyectar estado para que el próximo back también lo capture
   history.pushState({ mwire: true }, '');
 
-  // 1. Modal recorte
+  // 1. Modal tomas apiladas
+  if (document.getElementById('stackModal')?.classList.contains('open')) {
+    closeStackModal(); return;
+  }
+  // 1b. Modal recorte
   if (document.getElementById('cropModal')?.classList.contains('open')) {
     closeCropModal(); return;
   }
@@ -4248,6 +4329,12 @@ function checkAnyMarkerTap(imgPt) {
   return markers.find(m => Math.hypot(m.x - imgPt.x, m.y - imgPt.y) < HIT);
 }
 
+// ── Detectar grupo de marcadores en un punto (para pilas) ────────
+function checkMarkerGroup(imgPt) {
+  const HIT = 28 / zoomLevel;
+  return markers.filter(m => Math.hypot(m.x - imgPt.x, m.y - imgPt.y) < HIT);
+}
+
 // ── Modal genérico editar marcador ───────────────────────────────
 let _editingMarker = null;
 
@@ -4280,7 +4367,10 @@ function deleteMarkerFromModal() {
   pushHistory();
   const idx = markers.indexOf(_editingMarker);
   if (idx !== -1) markers.splice(idx, 1);
+  // Borrar también el cable asociado si tiene nombre (comparación insensible a mayúsculas)
+  if (_editingMarker.name) cables = cables.filter(c => c.name.toLowerCase() !== _editingMarker.name.toLowerCase());
   closeMarkerEditModal();
+  updateCableList();
   renderDraw(); scheduleAutoSave();
 }
 
@@ -4288,6 +4378,36 @@ function deleteMarkerFromModal() {
 function checkCamMarkerTap(imgPt) {
   const HIT = 28 / zoomLevel;
   return markers.find(m => m.type === 'cam' && Math.hypot(m.x - imgPt.x, m.y - imgPt.y) < HIT);
+}
+
+// ── Modal de tomas apiladas ──────────────────────────────────────
+function openStackModal(group, fromCablesTab) {
+  _stackModalMarkers = group;
+  const body = document.getElementById('stackModalBody');
+  if (!body) return;
+  body.innerHTML = group.map((m, i) => {
+    const cable = cables.find(c => c.name === m.name);
+    const cableInfo = cable
+      ? `<div class="stack-item-cable traced">Cable: ${(cable.meters || 0).toFixed(2)} m</div>`
+      : `<div class="stack-item-cable">Sin cable trazado</div>`;
+    const traceBtn = fromCablesTab
+      ? `<button onclick="startCableFromMarker(_stackModalMarkers[${i}]);closeStackModal();"
+           style="flex-shrink:0;padding:5px 12px;border-radius:8px;border:1.5px solid var(--primary);background:#eff6ff;color:var(--primary);font-size:0.8rem;cursor:pointer;font-weight:600;">Trazar</button>`
+      : '';
+    return `<div class="stack-item">
+      <div class="stack-item-info">
+        <div class="stack-item-name">${m.name || '(sin nombre)'}</div>
+        ${cableInfo}
+      </div>
+      ${traceBtn}
+    </div>`;
+  }).join('');
+  document.getElementById('stackModal').classList.add('open');
+}
+
+function closeStackModal() {
+  document.getElementById('stackModal').classList.remove('open');
+  _stackModalMarkers = [];
 }
 
 // ── Modal configuración cámara ───────────────────────────────────
@@ -4409,11 +4529,33 @@ function _applySnapshot(snap) {
   cables   = (f.cables   || []).map(c => ({ ...c, points: [...c.points] }));
   markers  = [...(f.markers  || [])];
   calibPts = [...(f.calibPts || [])];
+  scale    = f.scale  || null;
+  offsetX  = f.offsetX || 0; offsetY = f.offsetY || 0; zoomLevel = f.zoomLevel || 1;
   currentPoints = []; drawingActive = false; _setFabVisibility(false);
   selectedCableIdx = null;
+  // Salir del modo borrado al aplicar historial
+  if (deleteMarkerMode) {
+    deleteMarkerMode = false;
+    const btn = document.getElementById('btnDelMarker');
+    if (btn) { btn.classList.remove('active'); btn.textContent = '🗑'; }
+  }
+  _selectedMarkerIds.clear();
+  _updateDeleteSelectedBtn();
   updateCableList();
   renderFloorTabs();
-  renderDraw();
+  // Recargar imagen si cambió respecto a la actual
+  if (f.imgSrc && f.imgSrc !== img?.src) {
+    imgW = f.imgW || 0; imgH = f.imgH || 0;
+    const newImg = new Image();
+    newImg.onload = () => {
+      img = newImg;
+      imgW = newImg.width; imgH = newImg.height;
+      renderDraw();
+    };
+    newImg.src = f.imgSrc;
+  } else {
+    renderDraw();
+  }
   scheduleAutoSave();
 }
 
@@ -4720,7 +4862,8 @@ function doNewProject() {
   currentFloorIdx = 0;
   img = null; imgW = 0; imgH = 0;
   scale = null; calibPts = []; calibPhase = 'A';
-  cables = []; currentPoints = []; markers = []; drawingActive = false; deleteMarkerMode = false;
+  cables = []; currentPoints = []; markers = []; drawingActive = false;
+  deleteMarkerMode = false; _selectedMarkerIds.clear();
   showCables = true; showMarkers = true;
   calibCanvas = null; calibCtx = null;
   drawCanvas = null; drawCtx = null;
@@ -4743,6 +4886,10 @@ function doNewProject() {
   document.getElementById('btnGoDrawing').style.display = 'none';
   document.getElementById('realDistRow').style.display = 'none';
   document.getElementById('realDist').value = '';
+  // Resetear UI de borrado de marcadores
+  const _delBtn = document.getElementById('btnDelMarker');
+  if (_delBtn) { _delBtn.classList.remove('active'); _delBtn.textContent = '🗑'; }
+  _updateDeleteSelectedBtn();
   // Resetear stepper
   document.querySelectorAll('.step').forEach(s => s.classList.remove('done', 'active'));
   document.getElementById('step1').classList.add('active');
