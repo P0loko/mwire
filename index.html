@@ -2856,8 +2856,16 @@ function onDrawPointerUp(e) {
           (m.type === 'data' || m.type === 'wifi') &&
           Math.hypot(m.x - imgPt.x, m.y - imgPt.y) < 28 / zoomLevel
         );
-        if (group.length === 1) startCableFromMarker(group[0]);
-        else if (group.length > 1) openStackModal(group, true);
+        if (group.length === 1) {
+          const m = group[0];
+          const alreadyTraced = cables.some(c => c.name.toLowerCase() === (m.name || '').toLowerCase());
+          if (alreadyTraced) {
+            // Mostrar info del cable en el modal (solo lectura, sin botón Trazar)
+            openStackModal(group, true);
+          } else {
+            startCableFromMarker(m);
+          }
+        } else if (group.length > 1) openStackModal(group, true);
       } else if (activeTab === 'markers') {
         if (deleteMarkerMode) {
           const HIT = 22 / zoomLevel;
@@ -2966,13 +2974,15 @@ function startCableFromMarker(marker) {
 }
 
 // Inicia el trazado desde un grupo de tomas apiladas.
-// Si el grupo tiene >1 marcador, al finalizar se crea un cable por cada uno con el mismo recorrido.
+// Filtra las que ya tienen cable; al finalizar crea un cable por cada toma sin cable.
 function startCableFromGroup(group, idx) {
-  _tracingFromGroup = group.length > 1 ? group : null;
+  // Solo las tomas que aún no tienen cable asociado
+  const untraced = group.filter(m => !cables.some(c => c.name.toLowerCase() === (m.name || '').toLowerCase()));
+  _tracingFromGroup = untraced.length > 1 ? untraced : null;
   startCableFromMarker(group[idx]);
   if (_tracingFromGroup) {
-    const names = group.map(m => m.name || '?').join(', ');
-    toast(`Trazando para ${group.length} tomas: ${names}`, 3500);
+    const names = untraced.map(m => m.name || '?').join(', ');
+    toast(`Trazando para ${untraced.length} tomas: ${names}`, 3500);
   }
 }
 
@@ -4430,7 +4440,8 @@ function _renderStackModalBody() {
     } else {
       cableInfo = `<div class="stack-item-cable">Sin cable trazado</div>`;
     }
-    const traceBtn = _stackModalFromCables
+    // Solo mostrar "Trazar" si estamos en la pestaña cables Y el marcador aún no tiene cable
+    const traceBtn = (_stackModalFromCables && !cable)
       ? `<button onclick="startCableFromGroup([..._stackModalMarkers], ${i});closeStackModal();"
            style="flex-shrink:0;padding:5px 12px;border-radius:8px;border:1.5px solid var(--primary);background:#eff6ff;color:var(--primary);font-size:0.8rem;cursor:pointer;font-weight:600;">Trazar</button>`
       : '';
