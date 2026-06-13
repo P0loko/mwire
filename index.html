@@ -1881,6 +1881,7 @@ let deleteMarkerMode = false;
 let _selectedMarkerIds = new Set(); // IDs de marcadores seleccionados para borrar
 let _stackModalMarkers = [];        // marcadores del grupo abierto en el modal de tomas
 let _stackModalFromCables = false;  // true si se abrió desde la pestaña cables
+let _tracingFromGroup = null;       // array de marcadores cuando se traza desde un grupo apilado
 let activeTab = 'cables';
 
 // Capas
@@ -2964,6 +2965,17 @@ function startCableFromMarker(marker) {
   toast(`Trazando desde "${baseName}" — toca el plano para continuar`);
 }
 
+// Inicia el trazado desde un grupo de tomas apiladas.
+// Si el grupo tiene >1 marcador, al finalizar se crea un cable por cada uno con el mismo recorrido.
+function startCableFromGroup(group, idx) {
+  _tracingFromGroup = group.length > 1 ? group : null;
+  startCableFromMarker(group[idx]);
+  if (_tracingFromGroup) {
+    const names = group.map(m => m.name || '?').join(', ');
+    toast(`Trazando para ${group.length} tomas: ${names}`, 3500);
+  }
+}
+
 function toggleDrawing() {
   if (!drawingActive) {
     // Validar nombre duplicado antes de empezar a trazar
@@ -2991,6 +3003,7 @@ function toggleDrawing() {
     btn.textContent = '✏️ Trazar';
     btn.style.background = '#fef9c3';
     currentPoints = [];
+    _tracingFromGroup = null;
     renderDraw();
   }
 }
@@ -3026,20 +3039,33 @@ function finishCable() {
   }
 
   const nameInput = document.getElementById('cableNameInput');
-  const qty = Math.max(1, Math.min(99, parseInt(document.getElementById('cableQtyInput')?.value) || 1));
-  const baseName = nameInput.value.trim() || `Cable ${cables.length + 1}`;
-
-  // Añadir N cables con el mismo recorrido
   let addedNames = [];
-  let currentName = baseName;
-  for (let i = 0; i < qty; i++) {
-    // Si el nombre ya existe, incrementar hasta encontrar uno libre
-    while (cables.some(c => c.name.toLowerCase() === currentName.toLowerCase())) {
+
+  if (_tracingFromGroup && _tracingFromGroup.length > 1) {
+    // ── Modo grupo: un cable por cada marcador del grupo, mismo recorrido ──
+    _tracingFromGroup.forEach(m => {
+      let usedName = m.name || `Cable ${cables.length + 1}`;
+      while (cables.some(c => c.name.toLowerCase() === usedName.toLowerCase())) {
+        usedName = autoIncrementName(usedName);
+      }
+      cables.push({ name: usedName, color: selectedColor, points: [...currentPoints], meters, extraDrop: 0, extraSlack: 0 });
+      addedNames.push(usedName);
+    });
+    _tracingFromGroup = null;
+  } else {
+    // ── Modo normal: N cables por selector de cantidad ──
+    const qty = Math.max(1, Math.min(99, parseInt(document.getElementById('cableQtyInput')?.value) || 1));
+    const baseName = nameInput.value.trim() || `Cable ${cables.length + 1}`;
+    let currentName = baseName;
+    for (let i = 0; i < qty; i++) {
+      while (cables.some(c => c.name.toLowerCase() === currentName.toLowerCase())) {
+        currentName = autoIncrementName(currentName);
+      }
+      cables.push({ name: currentName, color: selectedColor, points: [...currentPoints], meters, extraDrop: 0, extraSlack: 0 });
+      addedNames.push(currentName);
       currentName = autoIncrementName(currentName);
     }
-    cables.push({ name: currentName, color: selectedColor, points: [...currentPoints], meters, extraDrop: 0, extraSlack: 0 });
-    addedNames.push(currentName);
-    currentName = autoIncrementName(currentName);
+    nameInput.value = currentName;
   }
 
   currentPoints = [];
@@ -3047,16 +3073,14 @@ function finishCable() {
   _setFabVisibility(false);
   document.getElementById('btnToggleDraw').textContent = '✏️ Trazar';
   document.getElementById('btnToggleDraw').style.background = '#fef9c3';
-  // Dejar el input listo para el siguiente cable
-  nameInput.value = currentName;
 
   updateCableList();
   renderDraw();
   scheduleAutoSave();
-  if (qty === 1) {
+  if (addedNames.length === 1) {
     toast(`✔ "${addedNames[0]}" añadido: ${meters.toFixed(2)} m`);
   } else {
-    toast(`✔ ${qty} cables añadidos: ${meters.toFixed(2)} m c/u`);
+    toast(`✔ ${addedNames.length} cables añadidos: ${meters.toFixed(2)} m c/u`);
   }
 }
 
@@ -3103,6 +3127,7 @@ function applyFloor(idx) {
   markers = [...(f.markers || [])];
   offsetX = f.offsetX || 0; offsetY = f.offsetY || 0; zoomLevel = f.zoomLevel || 1;
   currentPoints = []; drawingActive = false; _setFabVisibility(false); selectedCableIdx = null;
+  _tracingFromGroup = null;
   // Salir del modo borrado al cambiar de planta
   if (deleteMarkerMode) {
     deleteMarkerMode = false;
@@ -4406,7 +4431,7 @@ function _renderStackModalBody() {
       cableInfo = `<div class="stack-item-cable">Sin cable trazado</div>`;
     }
     const traceBtn = _stackModalFromCables
-      ? `<button onclick="startCableFromMarker(_stackModalMarkers[${i}]);closeStackModal();"
+      ? `<button onclick="startCableFromGroup([..._stackModalMarkers], ${i});closeStackModal();"
            style="flex-shrink:0;padding:5px 12px;border-radius:8px;border:1.5px solid var(--primary);background:#eff6ff;color:var(--primary);font-size:0.8rem;cursor:pointer;font-weight:600;">Trazar</button>`
       : '';
     return `<div class="stack-item" id="stack-item-${i}">
@@ -4617,7 +4642,7 @@ function _applySnapshot(snap) {
   scale    = f.scale  || null;
   offsetX  = f.offsetX || 0; offsetY = f.offsetY || 0; zoomLevel = f.zoomLevel || 1;
   currentPoints = []; drawingActive = false; _setFabVisibility(false);
-  selectedCableIdx = null;
+  selectedCableIdx = null; _tracingFromGroup = null;
   // Salir del modo borrado al aplicar historial
   if (deleteMarkerMode) {
     deleteMarkerMode = false;
@@ -4948,7 +4973,7 @@ function doNewProject() {
   img = null; imgW = 0; imgH = 0;
   scale = null; calibPts = []; calibPhase = 'A';
   cables = []; currentPoints = []; markers = []; drawingActive = false;
-  deleteMarkerMode = false; _selectedMarkerIds.clear();
+  deleteMarkerMode = false; _selectedMarkerIds.clear(); _tracingFromGroup = null;
   showCables = true; showMarkers = true;
   calibCanvas = null; calibCtx = null;
   drawCanvas = null; drawCtx = null;
