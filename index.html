@@ -1880,6 +1880,7 @@ let selectedMarkerType = 'data';
 let deleteMarkerMode = false;
 let _selectedMarkerIds = new Set(); // IDs de marcadores seleccionados para borrar
 let _stackModalMarkers = [];        // marcadores del grupo abierto en el modal de tomas
+let _stackModalFromCables = false;  // true si se abrió desde la pestaña cables
 let activeTab = 'cables';
 
 // Capas
@@ -4383,31 +4384,115 @@ function checkCamMarkerTap(imgPt) {
 // ── Modal de tomas apiladas ──────────────────────────────────────
 function openStackModal(group, fromCablesTab) {
   _stackModalMarkers = group;
+  _stackModalFromCables = fromCablesTab;
+  _renderStackModalBody();
+  document.getElementById('stackModal').classList.add('open');
+}
+
+function _renderStackModalBody() {
   const body = document.getElementById('stackModalBody');
   if (!body) return;
-  body.innerHTML = group.map((m, i) => {
-    const cable = cables.find(c => c.name === m.name);
-    const cableInfo = cable
-      ? `<div class="stack-item-cable traced">Cable: ${(cable.meters || 0).toFixed(2)} m</div>`
-      : `<div class="stack-item-cable">Sin cable trazado</div>`;
-    const traceBtn = fromCablesTab
+  body.innerHTML = _stackModalMarkers.map((m, i) => {
+    const cable = cables.find(c => c.name.toLowerCase() === (m.name || '').toLowerCase());
+    let cableInfo;
+    if (cable) {
+      const total = cableTotal(cable) * (1 + margin);
+      const hasExtras = cable.extraDrop > 0 || cable.extraSlack > 0;
+      const detail = hasExtras
+        ? `${(cable.meters||0).toFixed(2)} + ${((cable.extraDrop||0)+(cable.extraSlack||0)).toFixed(1)} extras`
+        : `${(cable.meters||0).toFixed(2)} m`;
+      cableInfo = `<div class="stack-item-cable traced" title="${detail}">📏 ${total.toFixed(2)} m${margin > 0 ? ` <span style="opacity:0.65;font-size:0.75em;">(+${Math.round(margin*100)}%)</span>` : ''}</div>`;
+    } else {
+      cableInfo = `<div class="stack-item-cable">Sin cable trazado</div>`;
+    }
+    const traceBtn = _stackModalFromCables
       ? `<button onclick="startCableFromMarker(_stackModalMarkers[${i}]);closeStackModal();"
            style="flex-shrink:0;padding:5px 12px;border-radius:8px;border:1.5px solid var(--primary);background:#eff6ff;color:var(--primary);font-size:0.8rem;cursor:pointer;font-weight:600;">Trazar</button>`
       : '';
-    return `<div class="stack-item">
-      <div class="stack-item-info">
-        <div class="stack-item-name">${m.name || '(sin nombre)'}</div>
+    return `<div class="stack-item" id="stack-item-${i}">
+      <div class="stack-item-info" style="flex:1;min-width:0;">
+        <div style="display:flex;align-items:center;gap:4px;">
+          <span class="stack-item-name" id="stack-name-${i}">${m.name || '(sin nombre)'}</span>
+          <button onclick="renameMarkerInStack(${i})"
+            style="background:none;border:none;font-size:0.8rem;cursor:pointer;color:var(--muted);padding:2px 4px;flex-shrink:0;line-height:1;"
+            title="Renombrar">✏</button>
+        </div>
         ${cableInfo}
       </div>
       ${traceBtn}
     </div>`;
   }).join('');
-  document.getElementById('stackModal').classList.add('open');
+}
+
+function renameMarkerInStack(idx) {
+  const nameSpan = document.getElementById(`stack-name-${idx}`);
+  if (!nameSpan) return;
+  const marker = _stackModalMarkers[idx];
+  const currentName = marker.name || '';
+  // Ocultar el botón ✏ junto al nombre
+  const editBtn = nameSpan.nextElementSibling;
+  if (editBtn) editBtn.style.display = 'none';
+
+  // Crear input inline
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.value = currentName;
+  input.maxLength = 20;
+  input.style.cssText = 'flex:1;min-width:0;border:1.5px solid var(--primary);border-radius:6px;padding:3px 7px;font-size:0.88rem;outline:none;font-weight:600;';
+  nameSpan.replaceWith(input);
+  input.focus(); input.select();
+
+  // Botones confirmar / cancelar
+  const okBtn = document.createElement('button');
+  okBtn.textContent = '✔';
+  okBtn.style.cssText = 'background:#16a34a;color:white;border:none;border-radius:6px;padding:3px 8px;cursor:pointer;font-size:0.85rem;flex-shrink:0;';
+  const cancelBtn = document.createElement('button');
+  cancelBtn.textContent = '✕';
+  cancelBtn.style.cssText = 'background:#6b7280;color:white;border:none;border-radius:6px;padding:3px 8px;cursor:pointer;font-size:0.85rem;flex-shrink:0;';
+  input.after(okBtn);
+  okBtn.after(cancelBtn);
+
+  let _committed = false;
+  function doConfirm() {
+    if (_committed) return; _committed = true;
+    _confirmRenameMarkerInStack(idx, input.value.trim() || currentName);
+  }
+  function doCancel() {
+    if (_committed) return; _committed = true;
+    _renderStackModalBody();
+  }
+
+  okBtn.addEventListener('mousedown', e => { e.preventDefault(); doConfirm(); });
+  cancelBtn.addEventListener('mousedown', e => { e.preventDefault(); doCancel(); });
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); doConfirm(); }
+    if (e.key === 'Escape') doCancel();
+  });
+  input.addEventListener('blur', () => setTimeout(() => { if (!_committed) doConfirm(); }, 150));
+}
+
+function _confirmRenameMarkerInStack(idx, newName) {
+  const marker = _stackModalMarkers[idx];
+  if (newName === marker.name) { _renderStackModalBody(); return; }
+  pushHistory();
+  const oldName = marker.name;
+  marker.name = newName;
+  // Renombrar también el cable asociado para mantener el vínculo
+  if (oldName) {
+    const cable = cables.find(c => c.name.toLowerCase() === oldName.toLowerCase());
+    if (cable) cable.name = newName;
+  }
+  updateCableList();
+  renderDraw();
+  scheduleAutoSave();
+  _renderStackModalBody();
+  toast(`✔ Renombrado a "${newName}"`);
 }
 
 function closeStackModal() {
   document.getElementById('stackModal').classList.remove('open');
   _stackModalMarkers = [];
+  _stackModalFromCables = false;
 }
 
 // ── Modal configuración cámara ───────────────────────────────────
