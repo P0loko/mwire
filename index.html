@@ -3545,9 +3545,9 @@ function selectMarkerType(el) {
   document.querySelectorAll('.marker-btn').forEach(b => b.classList.remove('selected'));
   el.classList.add('selected');
   selectedMarkerType = el.dataset.mtype;
-  // Mostrar selector de cantidad solo para tipos que admiten múltiples (no rack/cam)
+  // Mostrar selector de cantidad solo para tipos que admiten múltiples (no rack/cam/wifi)
   const qtyInput = document.getElementById('markerQtyInput');
-  if (qtyInput) qtyInput.style.display = (selectedMarkerType === 'rack' || selectedMarkerType === 'cam') ? 'none' : '';
+  if (qtyInput) qtyInput.style.display = (selectedMarkerType === 'rack' || selectedMarkerType === 'cam' || selectedMarkerType === 'wifi') ? 'none' : '';
   // Salir de modo borrar al seleccionar un tipo
   if (deleteMarkerMode) toggleDeleteMarker();
 }
@@ -4392,8 +4392,16 @@ function closeMarkerEditModal() {
 
 function confirmMarkerEditModal() {
   if (!_editingMarker) return;
+  const newName = document.getElementById('markerEditInput').value.trim();
+  if (newName === _editingMarker.name) { closeMarkerEditModal(); return; }
   pushHistory();
-  _editingMarker.name = document.getElementById('markerEditInput').value.trim();
+  const oldName = _editingMarker.name;
+  _editingMarker.name = newName;
+  // Renombrar el cable asociado para mantener el vínculo
+  if (oldName) {
+    const cable = cables.find(c => c.name.toLowerCase() === oldName.toLowerCase());
+    if (cable) { cable.name = newName; updateCableList(); }
+  }
   closeMarkerEditModal();
   renderDraw(); scheduleAutoSave();
 }
