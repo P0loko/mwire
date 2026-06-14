@@ -4841,6 +4841,15 @@ async function saveProject() {
     ? _currentProjectName
     : (document.getElementById('projectNameInput')?.value.trim() || `Proyecto ${new Date().toLocaleDateString('es-ES')}`);
 
+  // Verificar nombre duplicado solo al crear proyecto nuevo
+  if (!isOverwrite) {
+    const existing = await idbGetAll();
+    if (existing.some(p => p.name.trim().toLowerCase() === name.toLowerCase())) {
+      toast(`Ya existe un proyecto llamado "${name}"`);
+      return;
+    }
+  }
+
   const thumb = generateThumb(img, 120, 90);
   const project = {
     id,
