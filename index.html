@@ -3736,9 +3736,7 @@ window.addEventListener('popstate', () => {
     if (btn) { btn.textContent = '✏️ Trazar'; btn.style.background = '#fef9c3'; }
     renderDraw(); return;
   }
-  // 5. Retroceder paso
-  if (currentStep === 3) { goStep(2); return; }
-  if (currentStep === 2) { goStep(1); return; }
+  // 5. Retroceder paso — desactivado: el back nunca navega entre pasos
 });
 
 // Touch events ya no se necesitan para calibración — gestionado por Pointer Events
