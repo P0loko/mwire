@@ -2623,24 +2623,31 @@ function drawCameraVision(ctx, m) {
 function drawMarkerOnCanvas(ctx, type, cx, cy, name, marker, stackCount) {
   const mt = MARKER_TYPES[type] || MARKER_TYPES.data;
 
-  // Medir texto para calcular ancho de la pastilla
-  ctx.font = 'bold 11px sans-serif';
+  // Escala suave: raíz cuadrada del zoom (B) → se encoge al alejar pero no tanto como el plano
+  const sc = Math.max(0.45, Math.min(1.4, Math.pow(zoomLevel, 0.5)));
+
+  const fontSize  = Math.round(11 * sc);
+  const padX      = Math.round(7  * sc);
+  const padY      = Math.round(4  * sc);
+  const baseH     = Math.round(18 * sc);
+  const br        = Math.round(5  * sc);
+
+  ctx.font = `bold ${fontSize}px sans-serif`;
   const tw = ctx.measureText(mt.short).width;
-  const padX = 7, padY = 4;
   const bw = tw + padX * 2;
-  const bh = 18 + padY * 2;  // ~22px de alto
-  const br = 5;
+  const bh = baseH + padY * 2;
   const bx = cx - bw / 2;
   const by = cy - bh / 2;
 
   // Anillo exterior en modo cables → indica que el marcador es trazable
   if ((type === 'data' || type === 'wifi') && activeTab === 'cables' && !drawingActive) {
+    const ring = Math.round(4 * sc);
     ctx.save();
     ctx.strokeStyle = mt.color;
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = Math.max(1, 1.5 * sc);
     ctx.globalAlpha = 0.45;
     ctx.setLineDash([3, 3]);
-    roundRect(ctx, bx - 4, by - 4, bw + 8, bh + 8, br + 3);
+    roundRect(ctx, bx - ring, by - ring, bw + ring * 2, bh + ring * 2, br + Math.round(3 * sc));
     ctx.stroke();
     ctx.setLineDash([]);
     ctx.restore();
@@ -2649,8 +2656,8 @@ function drawMarkerOnCanvas(ctx, type, cx, cy, name, marker, stackCount) {
   // Sombra
   ctx.save();
   ctx.shadowColor = 'rgba(0,0,0,0.22)';
-  ctx.shadowBlur = 5;
-  ctx.shadowOffsetY = 2;
+  ctx.shadowBlur = 5 * sc;
+  ctx.shadowOffsetY = 2 * sc;
 
   // Pastilla rellena
   roundRect(ctx, bx, by, bw, bh, br);
@@ -2659,7 +2666,7 @@ function drawMarkerOnCanvas(ctx, type, cx, cy, name, marker, stackCount) {
   ctx.restore();
 
   // Texto en blanco
-  ctx.font = 'bold 11px sans-serif';
+  ctx.font = `bold ${fontSize}px sans-serif`;
   ctx.fillStyle = 'white';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
@@ -2669,36 +2676,42 @@ function drawMarkerOnCanvas(ctx, type, cx, cy, name, marker, stackCount) {
   if (type === 'rack' && marker?.rackData?.rackItems?.length > 0) {
     const count = marker.rackData.rackItems.length;
     const badge = count + ' eq';
-    ctx.font = 'bold 9px sans-serif';
-    const bw2 = ctx.measureText(badge).width + 8;
+    const bfs = Math.round(9 * sc);
+    ctx.font = `bold ${bfs}px sans-serif`;
+    const bw2 = ctx.measureText(badge).width + Math.round(8 * sc);
+    const bh2 = Math.round(10 * sc);
     ctx.fillStyle = '#22c55e';
-    roundRect(ctx, cx - bw2/2, by - 12, bw2, 10, 3);
+    roundRect(ctx, cx - bw2/2, by - bh2 - Math.round(2 * sc), bw2, bh2, Math.round(3 * sc));
     ctx.fill();
     ctx.fillStyle = 'white'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(badge, cx, by - 7);
+    ctx.fillText(badge, cx, by - Math.round(7 * sc));
   }
 
-  // Nombre debajo de la pastilla
-  if (name) {
-    ctx.font = 'bold 10px sans-serif';
+  // Nombre debajo de la pastilla (C: solo visible a partir de zoom 0.6)
+  if (name && zoomLevel >= 0.6) {
+    const nfs = Math.round(10 * sc);
+    ctx.font = `bold ${nfs}px sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
     const nw = ctx.measureText(name).width;
+    const gap = Math.round(2 * sc);
+    const nh  = Math.round(13 * sc);
     ctx.fillStyle = 'rgba(255,255,255,0.88)';
-    ctx.fillRect(cx - nw / 2 - 2, by + bh + 2, nw + 4, 13);
+    ctx.fillRect(cx - nw / 2 - 2, by + bh + gap, nw + 4, nh);
     ctx.fillStyle = mt.color;
-    ctx.fillText(name, cx, by + bh + 3);
+    ctx.fillText(name, cx, by + bh + gap + 1);
   }
 
   // Badge ✎ en marcadores interactivos (Rack y Cam) cuando estamos en pestaña marcadores
   if ((type === 'rack' || type === 'cam') && activeTab === 'markers' && !deleteMarkerMode) {
-    const ex = bx + bw + 2, ey = by - 2;
+    const r  = Math.round(6 * sc);
+    const ex = bx + bw + Math.round(2 * sc), ey = by - Math.round(2 * sc);
     ctx.save();
     ctx.beginPath();
-    ctx.arc(ex, ey, 6, 0, Math.PI * 2);
+    ctx.arc(ex, ey, r, 0, Math.PI * 2);
     ctx.fillStyle = '#1e293b';
     ctx.fill();
-    ctx.font = 'bold 8px sans-serif';
+    ctx.font = `bold ${Math.round(8 * sc)}px sans-serif`;
     ctx.fillStyle = 'white';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -2709,35 +2722,39 @@ function drawMarkerOnCanvas(ctx, type, cx, cy, name, marker, stackCount) {
   // Badge ×N cuando hay varias tomas apiladas en la misma posición
   if (stackCount && stackCount > 1) {
     const label = '×' + stackCount;
+    const bfs2  = Math.round(9 * sc);
     ctx.save();
-    ctx.font = 'bold 9px sans-serif';
-    const sw = ctx.measureText(label).width + 7;
-    const sx = bx - 2, sy = by - 11;
-    roundRect(ctx, sx, sy, sw, 11, 3);
+    ctx.font = `bold ${bfs2}px sans-serif`;
+    const sw  = ctx.measureText(label).width + Math.round(7 * sc);
+    const sh  = Math.round(11 * sc);
+    const sx  = bx - Math.round(2 * sc);
+    const sy  = by - sh - Math.round(1 * sc);
+    roundRect(ctx, sx, sy, sw, sh, Math.round(3 * sc));
     ctx.fillStyle = '#f59e0b';
     ctx.fill();
     ctx.fillStyle = 'white';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    ctx.fillText(label, sx + 3, sy + 5.5);
+    ctx.fillText(label, sx + Math.round(3 * sc), sy + sh / 2);
     ctx.restore();
   }
 
   // Modo selección: indicador en esquina superior derecha
   if (deleteMarkerMode) {
     const isSelected = marker && _selectedMarkerIds.has(marker.id);
-    const dx = bx + bw + 2, dy = by - 2;
+    const r  = Math.round(7 * sc);
+    const dx = bx + bw + Math.round(2 * sc), dy = by - Math.round(2 * sc);
     ctx.save();
     ctx.beginPath();
-    ctx.arc(dx, dy, 7, 0, Math.PI * 2);
+    ctx.arc(dx, dy, r, 0, Math.PI * 2);
     ctx.fillStyle = isSelected ? '#dc2626' : 'white';
     ctx.strokeStyle = '#dc2626';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = Math.max(1, 2 * sc);
     ctx.fill();
     ctx.stroke();
     if (isSelected) {
       ctx.fillStyle = 'white';
-      ctx.font = 'bold 9px sans-serif';
+      ctx.font = `bold ${Math.round(9 * sc)}px sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText('✓', dx, dy + 0.5);
