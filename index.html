@@ -5081,7 +5081,7 @@ function showDrawerConfirm(title, subtitle, onConfirm) {
 async function renderProjectList() {
   const container = document.getElementById('projectList');
   container.innerHTML = '<div style="padding:16px;color:var(--muted);font-size:0.82rem;">Cargando…</div>';
-  const list = await idbGetAll();
+  const list = (await idbGetAll()).filter(p => p.id !== AUTOSAVE_ID);
   if (list.length === 0) {
     container.innerHTML = `
       <div class="project-empty">
