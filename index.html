@@ -859,6 +859,71 @@
       display: flex; gap: 10px;
     }
 
+    /* Botón info en header */
+    .btn-info {
+      background: rgba(255,255,255,0.18);
+      border: none; color: white; cursor: pointer;
+      border-radius: 8px; padding: 6px 8px;
+      line-height: 0; margin-left: auto;
+      -webkit-tap-highlight-color: transparent;
+      transition: background 0.15s;
+    }
+    .btn-info:active { background: rgba(255,255,255,0.32); }
+
+    /* Modal de ayuda */
+    #helpModal {
+      display: none;
+      position: fixed; inset: 0; z-index: 600;
+      background: rgba(0,0,0,0.55);
+      align-items: flex-end; justify-content: center;
+      animation: fadeIn 0.18s ease;
+    }
+    #helpModal.open { display: flex; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    .help-sheet {
+      background: var(--card);
+      border-radius: 20px 20px 0 0;
+      width: 100%; max-width: 520px;
+      max-height: 88vh;
+      display: flex; flex-direction: column;
+      animation: slideUp 0.22s cubic-bezier(.32,1,.4,1);
+    }
+    @keyframes slideUp { from { transform: translateY(40px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    .help-sheet-header {
+      display: flex; align-items: center; gap: 10px;
+      padding: 18px 18px 12px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .help-sheet-header h3 { flex: 1; font-size: 1rem; font-weight: 700; }
+    .help-sheet-close {
+      background: var(--bg); border: none; border-radius: 50%;
+      width: 30px; height: 30px; cursor: pointer; font-size: 1rem;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--muted); flex-shrink: 0;
+    }
+    .help-sheet-body { overflow-y: auto; padding: 4px 0 max(24px, env(safe-area-inset-bottom)); }
+    .help-section {
+      padding: 14px 18px 2px;
+    }
+    .help-section-title {
+      font-size: 0.68rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.8px; color: var(--muted); margin-bottom: 8px;
+    }
+    .help-item {
+      display: flex; gap: 12px; align-items: flex-start;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .help-item:last-child { border-bottom: none; }
+    .help-item-icon {
+      width: 36px; height: 36px; border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.15rem; flex-shrink: 0;
+    }
+    .help-item-text strong { display: block; font-size: 0.88rem; font-weight: 600; margin-bottom: 2px; }
+    .help-item-text span { font-size: 0.78rem; color: var(--muted); line-height: 1.5; }
+
     /* Botón hamburguesa en header */
     .btn-menu {
       background: rgba(255,255,255,0.18);
@@ -1427,6 +1492,13 @@
     <path d="M17 13v-1M17 17v1M15 15h-1M19 15h1" stroke="white" stroke-width="1.5"/>
   </svg>
   <h1>MWire</h1>
+  <button class="btn-info" onclick="openHelpModal()" title="Ayuda" aria-label="Ayuda">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+      <circle cx="12" cy="12" r="10"/>
+      <line x1="12" y1="16" x2="12" y2="12"/>
+      <line x1="12" y1="8" x2="12.01" y2="8"/>
+    </svg>
+  </button>
   <button class="btn-menu" onclick="openDrawer()" title="Menú">☰</button>
 </header>
 
@@ -1565,6 +1637,18 @@
 </div>
 
 <!-- STEPPER -->
+<!-- MODAL AYUDA -->
+<div id="helpModal" onclick="if(event.target===this)closeHelpModal()">
+  <div class="help-sheet">
+    <div class="help-sheet-header">
+      <div class="help-item-icon" style="background:#eff6ff;font-size:1rem;">ℹ️</div>
+      <h3 id="helpModalTitle">Cómo usar MWire</h3>
+      <button class="help-sheet-close" onclick="closeHelpModal()">✕</button>
+    </div>
+    <div class="help-sheet-body" id="helpModalBody"></div>
+  </div>
+</div>
+
 <!-- MODAL NUEVO PROYECTO -->
 <div id="newProjectModal">
   <div class="new-project-sheet">
@@ -3897,6 +3981,10 @@ window.addEventListener('popstate', () => {
   // Reinyectar estado para que el próximo back también lo capture
   history.pushState({ mwire: true }, '');
 
+  // 0. Modal de ayuda
+  if (document.getElementById('helpModal')?.classList.contains('open')) {
+    closeHelpModal(); return;
+  }
   // 1. Modal tomas apiladas
   if (document.getElementById('stackModal')?.classList.contains('open')) {
     closeStackModal(); return;
@@ -3950,6 +4038,102 @@ window.addEventListener('popstate', () => {
 
 // Touch events ya no se necesitan para calibración — gestionado por Pointer Events
 
+
+// ═══════════════════════════════════════════════
+//  MODAL DE AYUDA
+// ═══════════════════════════════════════════════
+const HELP_CONTENT = {
+  0: { // Home
+    title: 'Tus proyectos',
+    sections: [{
+      label: 'Pantalla de inicio',
+      items: [
+        { icon: '📂', bg: '#eff6ff', title: 'Abrir proyecto', desc: 'Toca cualquier proyecto de la lista para abrirlo y continuar donde lo dejaste.' },
+        { icon: '➕', bg: '#f0fdf4', title: 'Nuevo proyecto', desc: 'Pulsa "Nuevo proyecto", ponle un nombre y carga el plano de tu instalación.' },
+        { icon: '🗑', bg: '#fef2f2', title: 'Eliminar proyecto', desc: 'Pulsa el icono de papelera junto al proyecto. Se pedirá confirmación con un segundo toque.' },
+      ]
+    }]
+  },
+  1: { // Subir plano
+    title: 'Paso 1 — Cargar plano',
+    sections: [{
+      label: 'Opciones de carga',
+      items: [
+        { icon: '🖼️', bg: '#eff6ff', title: 'Archivo o galería', desc: 'Selecciona una imagen (JPG, PNG) o un PDF del plano desde tu dispositivo.' },
+        { icon: '📷', bg: '#f0fdf4', title: 'Cámara', desc: 'Haz una foto directamente al plano impreso. Asegúrate de que esté bien iluminado y sin perspectiva.' },
+        { icon: '✂️', bg: '#fef9c3', title: 'Recortar', desc: 'Una vez cargado el plano, puedes recortarlo para eliminar márgenes o zonas que no interesan.' },
+      ]
+    }]
+  },
+  2: { // Calibrar
+    title: 'Paso 2 — Calibrar escala',
+    sections: [{
+      label: 'Cómo calibrar',
+      items: [
+        { icon: '📍', bg: '#eff6ff', title: 'Punto A', desc: 'Toca el primer extremo de una medida conocida en el plano (ej. la anchura de una habitación).' },
+        { icon: '📍', bg: '#fef2f2', title: 'Punto B', desc: 'Toca el segundo extremo de esa misma medida. Una vez fijados los dos puntos, introduce la distancia real en metros.' },
+        { icon: '📐', bg: '#f0fdf4', title: 'Confirmar escala', desc: 'Pulsa "Confirmar escala". MWire usará esa referencia para calcular los metros de todos los cables.' },
+        { icon: '💡', bg: '#fef9c3', title: 'Consejo', desc: 'Cuanto más larga sea la distancia de referencia, más precisa será la medición. Usa muros o pasillos largos.' },
+      ]
+    }]
+  },
+  3: { // Cables y marcadores
+    title: 'Paso 3 — Trazar cables',
+    sections: [
+      {
+        label: 'Pestaña Cables',
+        items: [
+          { icon: '✏️', bg: '#fef9c3', title: 'Trazar cable', desc: 'Pulsa "Trazar" y ve tocando los puntos del recorrido sobre el plano. Al terminar, confirma con el botón verde.' },
+          { icon: '🎨', bg: '#eff6ff', title: 'Color del cable', desc: 'Elige el color antes de trazar para identificar diferentes circuitos o categorías.' },
+          { icon: '📏', bg: '#f0fdf4', title: 'Extras y margen', desc: '"Bajante" añade longitud vertical (del techo al rack). "Cuelgue" añade holgura extra. El margen (%) aplica un porcentaje adicional a todos los cables.' },
+        ]
+      },
+      {
+        label: 'Pestaña Marcadores',
+        items: [
+          { icon: '🔵', bg: '#eff6ff', title: 'RJ45 — Toma de datos', desc: 'Marca el punto de destino del cable. Al trazar desde la pestaña Cables, el cable se asocia automáticamente a la toma.' },
+          { icon: '🟢', bg: '#f0fdf4', title: 'AP — Punto de acceso WiFi', desc: 'Señaliza los APs del plano. Cada AP tiene su propio cable individual.' },
+          { icon: '🟣', bg: '#f5f3ff', title: 'RACK — Armario de red', desc: 'Marca la ubicación del rack. Puedes añadirle equipos (switches, patch panels…) para documentar su contenido.' },
+          { icon: '🔴', bg: '#fef2f2', title: 'CAM — Cámara IP', desc: 'Marca cámaras IP. Puedes añadir una etiqueta de descripción a cada una.' },
+        ]
+      },
+      {
+        label: 'Otras funciones',
+        items: [
+          { icon: '↩', bg: '#f1f5f9', title: 'Deshacer / Rehacer', desc: 'Los botones de flecha en la barra de herramientas deshacen o rehacen el último cambio.' },
+          { icon: '🏢', bg: '#f1f5f9', title: 'Plantas', desc: 'Puedes añadir varias plantas al mismo proyecto. Cada una tiene su propio plano y sus cables.' },
+          { icon: '📤', bg: '#f0fdf4', title: 'Exportar PDF', desc: 'Desde el menú (☰) puedes exportar un informe PDF con el plano, la lista de cables y el resumen de metros.' },
+        ]
+      }
+    ]
+  }
+};
+
+function openHelpModal() {
+  const step = currentStep;
+  const data = HELP_CONTENT[step] || HELP_CONTENT[0];
+  document.getElementById('helpModalTitle').textContent = data.title;
+  document.getElementById('helpModalBody').innerHTML = data.sections.map(sec => `
+    <div class="help-section">
+      <div class="help-section-title">${sec.label}</div>
+      ${sec.items.map(item => `
+        <div class="help-item">
+          <div class="help-item-icon" style="background:${item.bg}">${item.icon}</div>
+          <div class="help-item-text">
+            <strong>${item.title}</strong>
+            <span>${item.desc}</span>
+          </div>
+        </div>`).join('')}
+    </div>`).join('');
+  document.getElementById('helpModal').classList.add('open');
+}
+
+function closeHelpModal() {
+  document.getElementById('helpModal').classList.remove('open');
+}
+
+// Cerrar modal de ayuda con back de Android
+// (añadido al handler de popstate existente)
 
 // ═══════════════════════════════════════════════
 //  HOME SCREEN
