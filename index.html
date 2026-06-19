@@ -709,6 +709,156 @@
       color: var(--muted); font-size: 0.88rem; line-height: 1.6;
     }
 
+    /* ── HOME SCREEN ── */
+    #screen0 {
+      background: linear-gradient(160deg, #1e3a5f 0%, #2563eb 55%, #3b82f6 100%);
+      overflow-y: auto;
+      flex-direction: column;
+      gap: 0;
+    }
+    .home-hero {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 36px 24px 24px;
+      text-align: center;
+      color: white;
+      flex-shrink: 0;
+    }
+    .home-hero-icon {
+      width: 68px; height: 68px;
+      background: rgba(255,255,255,0.15);
+      border-radius: 20px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 2rem;
+      margin-bottom: 14px;
+      backdrop-filter: blur(6px);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    }
+    .home-hero h2 {
+      font-size: 1.7rem; font-weight: 800;
+      letter-spacing: -0.5px; margin-bottom: 6px;
+    }
+    .home-hero p {
+      font-size: 0.9rem; opacity: 0.82; line-height: 1.5;
+      max-width: 280px;
+    }
+    .home-projects-section {
+      background: var(--bg);
+      border-radius: 20px 20px 0 0;
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      padding-bottom: max(24px, env(safe-area-inset-bottom));
+    }
+    .home-section-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 20px 18px 8px;
+    }
+    .home-section-title {
+      font-size: 0.72rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.8px;
+      color: var(--muted);
+    }
+    .home-project-card {
+      display: flex; align-items: center; gap: 14px;
+      padding: 12px 18px;
+      cursor: pointer;
+      transition: background 0.15s;
+      border-bottom: 1px solid var(--border);
+      background: var(--card);
+    }
+    .home-project-card:active { background: #eff6ff; }
+    .home-project-thumb {
+      width: 60px; height: 46px;
+      border-radius: 8px; object-fit: cover;
+      background: var(--bg); flex-shrink: 0;
+      border: 1px solid var(--border);
+    }
+    .home-project-info { flex: 1; min-width: 0; }
+    .home-project-name {
+      font-size: 0.95rem; font-weight: 600;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .home-project-meta { font-size: 0.75rem; color: var(--muted); margin-top: 2px; }
+    .home-project-del {
+      background: none; border: none; color: var(--muted);
+      font-size: 1.1rem; cursor: pointer; padding: 6px 8px;
+      flex-shrink: 0; opacity: 0.5;
+    }
+    .home-project-del:active { opacity: 1; color: var(--danger); }
+    .home-new-btn {
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      width: calc(100% - 36px); margin: 16px 18px 0;
+      padding: 15px;
+      background: var(--primary); color: white;
+      border: none; border-radius: 14px;
+      font-size: 1rem; font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 4px 14px rgba(37,99,235,0.35);
+      transition: background 0.15s, transform 0.1s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .home-new-btn:active { background: var(--primary-dark); transform: scale(0.98); }
+    .home-empty-state {
+      display: flex; flex-direction: column; align-items: center;
+      padding: 32px 28px 12px; text-align: center; flex: 1;
+    }
+    .home-empty-icon { font-size: 3rem; margin-bottom: 12px; opacity: 0.3; }
+    .home-empty-title {
+      font-size: 1rem; font-weight: 700; color: var(--text); margin-bottom: 6px;
+    }
+    .home-empty-sub {
+      font-size: 0.85rem; color: var(--muted); line-height: 1.6; margin-bottom: 20px;
+    }
+    .home-how-list {
+      width: 100%; text-align: left;
+      background: var(--bg); border-radius: 12px;
+      padding: 4px 0; margin-bottom: 8px;
+    }
+    .home-how-item {
+      display: flex; align-items: center; gap: 12px;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.84rem;
+    }
+    .home-how-item:last-child { border-bottom: none; }
+    .home-how-item-icon {
+      width: 34px; height: 34px; border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.1rem; flex-shrink: 0;
+    }
+    .home-how-item strong { display: block; font-size: 0.85rem; margin-bottom: 1px; }
+    .home-how-item span { font-size: 0.75rem; color: var(--muted); }
+
+    /* Modal nombre nuevo proyecto */
+    #newProjectModal {
+      display: none;
+      position: fixed; inset: 0; z-index: 500;
+      background: rgba(0,0,0,0.5);
+      align-items: flex-end; justify-content: center;
+    }
+    #newProjectModal.open { display: flex; }
+    .new-project-sheet {
+      background: var(--card);
+      border-radius: 20px 20px 0 0;
+      padding: 24px 20px max(24px, env(safe-area-inset-bottom));
+      width: 100%; max-width: 480px;
+    }
+    .new-project-sheet h3 {
+      font-size: 1.05rem; font-weight: 700; margin-bottom: 14px;
+    }
+    .new-project-sheet input {
+      width: 100%; padding: 12px 14px;
+      border: 1.5px solid var(--border); border-radius: 10px;
+      font-size: 1rem; outline: none; margin-bottom: 14px;
+    }
+    .new-project-sheet input:focus { border-color: var(--primary); }
+    .new-project-sheet-btns {
+      display: flex; gap: 10px;
+    }
+
     /* Botón hamburguesa en header */
     .btn-menu {
       background: rgba(255,255,255,0.18);
@@ -1415,8 +1565,20 @@
 </div>
 
 <!-- STEPPER -->
-<div class="stepper">
-  <div class="step active" id="step1" onclick="goStep(1)">
+<!-- MODAL NUEVO PROYECTO -->
+<div id="newProjectModal">
+  <div class="new-project-sheet">
+    <h3>Nuevo proyecto</h3>
+    <input type="text" id="newProjectNameInput" placeholder="Nombre del proyecto…" maxlength="40" />
+    <div class="new-project-sheet-btns">
+      <button class="btn btn-outline btn-sm" style="flex:1" onclick="closeNewProjectModal()">Cancelar</button>
+      <button class="btn btn-primary btn-sm" style="flex:1" onclick="confirmNewProject()">Crear proyecto →</button>
+    </div>
+  </div>
+</div>
+
+<div class="stepper" id="stepper" style="display:none;">
+  <div class="step" id="step1" onclick="goStep(1)">
     <div><div class="step-num">1</div></div>
     <div>Plano</div>
   </div>
@@ -1432,8 +1594,26 @@
 
 <main>
 
+  <!-- ══ SCREEN 0: HOME ══ -->
+  <div class="screen active" id="screen0">
+    <div class="home-hero">
+      <div class="home-hero-icon">📐</div>
+      <h2>MWire</h2>
+      <p>Mide y documenta instalaciones de cable UTP sobre plano</p>
+    </div>
+    <div class="home-projects-section">
+      <div id="homeProjectsContent">
+        <!-- Renderizado dinámicamente -->
+      </div>
+      <button class="home-new-btn" onclick="openNewProjectModal()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Nuevo proyecto
+      </button>
+    </div>
+  </div>
+
   <!-- ══ SCREEN 1: SUBIR PLANO ══ -->
-  <div class="screen active" id="screen1">
+  <div class="screen" id="screen1">
     <div class="upload-area">
       <div class="upload-options">
 
@@ -1865,7 +2045,7 @@ let imgW = 0, imgH = 0;
 let scale = null;          // metros por píxel de imagen (independiente del zoom)
 let calibPts = [];         // [{x,y}] en coords canvas
 let calibPhase = 'A';      // 'A' = colocando punto A, 'B' = colocando punto B, 'done' = confirmado
-let currentStep = 1;
+let currentStep = 0;
 
 // Dibujo
 let cables = [];           // [{name, color, points, meters}]
@@ -1916,20 +2096,29 @@ function toast(msg, dur = 2200) {
   setTimeout(() => t.classList.remove('show'), dur);
 }
 
+function goHome() {
+  currentStep = 0;
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen0').classList.add('active');
+  document.getElementById('stepper').style.display = 'none';
+  renderHomeScreen();
+}
+
 function goStep(n) {
   if (n === 2 && !img) return;
   if (n === 3 && !scale) { toast('Primero calibra la escala'); return; }
   currentStep = n;
+  // screen0=índice 0, screen1=índice 1, screen2=índice 2, screen3=índice 3
   document.querySelectorAll('.screen').forEach((s, i) => {
-    s.classList.toggle('active', i + 1 === n);
+    s.classList.toggle('active', i === n);
   });
   document.querySelectorAll('.step').forEach((s, i) => {
     s.classList.remove('active', 'done');
     if (i + 1 < n) s.classList.add('done');
     if (i + 1 === n) s.classList.add('active');
   });
-  // Ocultar stepper en paso 3 para maximizar espacio del plano
-  document.querySelector('.stepper').style.display = n === 3 ? 'none' : '';
+  // Mostrar/ocultar stepper: visible en pasos 1 y 2, oculto en paso 3
+  document.getElementById('stepper').style.display = (n === 3 || n === 0) ? 'none' : '';
   if (n === 2) { setTimeout(initCalibCanvas, 60); }
   if (n === 3) { setTimeout(initDrawCanvas, 60); renderFloorTabs(); }
 }
@@ -3194,7 +3383,8 @@ function applyFloor(idx) {
     document.getElementById('previewImg').src = '';
     // Go to step 1 directly (sin validación)
     currentStep = 1;
-    document.querySelectorAll('.screen').forEach((s, i) => s.classList.toggle('active', i === 0));
+    document.querySelectorAll('.screen').forEach((s, i) => s.classList.toggle('active', i === 1));
+    document.getElementById('stepper').style.display = '';
     document.querySelectorAll('.step').forEach((s, i) => {
       s.classList.remove('active', 'done');
       if (i === 0) s.classList.add('active');
@@ -3753,11 +3943,113 @@ window.addEventListener('popstate', () => {
     if (btn) { btn.textContent = '✏️ Trazar'; btn.style.background = '#fef9c3'; }
     renderDraw(); return;
   }
-  // 5. Retroceder paso — desactivado: el back nunca navega entre pasos
+  // 5. Desde paso 1 sin trabajo → volver al home
+  if (currentStep === 1 && !img) { goHome(); return; }
+  // Retroceder entre pasos desactivado en los demás casos
 });
 
 // Touch events ya no se necesitan para calibración — gestionado por Pointer Events
 
+
+// ═══════════════════════════════════════════════
+//  HOME SCREEN
+// ═══════════════════════════════════════════════
+async function renderHomeScreen() {
+  const container = document.getElementById('homeProjectsContent');
+  if (!container) return;
+  const list = (await idbGetAll()).filter(p => p.id !== AUTOSAVE_ID);
+
+  if (list.length === 0) {
+    container.innerHTML = `
+      <div class="home-empty-state">
+        <div class="home-empty-icon">📋</div>
+        <div class="home-empty-title">¡Bienvenido a MWire!</div>
+        <div class="home-empty-sub">Crea tu primer proyecto y empieza a medir instalaciones de cable UTP sobre plano.</div>
+        <div class="home-how-list">
+          <div class="home-how-item">
+            <div class="home-how-item-icon" style="background:#eff6ff;">🗺️</div>
+            <div>
+              <strong>Carga el plano</strong>
+              <span>Foto, imagen o PDF de la instalación</span>
+            </div>
+          </div>
+          <div class="home-how-item">
+            <div class="home-how-item-icon" style="background:#f0fdf4;">📐</div>
+            <div>
+              <strong>Calibra la escala</strong>
+              <span>Marca dos puntos de distancia conocida</span>
+            </div>
+          </div>
+          <div class="home-how-item">
+            <div class="home-how-item-icon" style="background:#fef9c3;">✏️</div>
+            <div>
+              <strong>Traza los cables</strong>
+              <span>MWire calcula los metros automáticamente</span>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    return;
+  }
+
+  container.innerHTML = `
+    <div class="home-section-header">
+      <div class="home-section-title">Tus proyectos</div>
+    </div>
+    ${list.map(p => {
+      const numFloors = p.floors ? p.floors.length : 1;
+      const totalCables = p.floors
+        ? p.floors.reduce((s, f) => s + (f.cables?.length || 0), 0)
+        : (p.cables?.length || 0);
+      const hasScale = p.floors ? p.floors.some(f => f.scale) : !!p.scale;
+      const meters = hasScale ? totalMetersForProject(p) : null;
+      return `
+      <div class="home-project-card" onclick="loadProject(${p.id})">
+        <img class="home-project-thumb" src="${p.thumb || ''}" alt="" />
+        <div class="home-project-info">
+          <div class="home-project-name">${p.name}</div>
+          <div class="home-project-meta">
+            ${p.date}${numFloors > 1 ? ` · ${numFloors} plantas` : ''} · ${totalCables} cable${totalCables !== 1 ? 's' : ''}${meters ? ' · ' + meters : ''}
+          </div>
+        </div>
+        <button class="home-project-del" onclick="deleteProjectFromHome(${p.id}, event)" title="Eliminar">🗑</button>
+      </div>`;
+    }).join('')}`;
+}
+
+function openNewProjectModal() {
+  const input = document.getElementById('newProjectNameInput');
+  input.value = '';
+  document.getElementById('newProjectModal').classList.add('open');
+  setTimeout(() => input.focus(), 120);
+}
+
+function closeNewProjectModal() {
+  document.getElementById('newProjectModal').classList.remove('open');
+}
+
+function confirmNewProject() {
+  const name = document.getElementById('newProjectNameInput').value.trim()
+    || `Proyecto ${new Date().toLocaleDateString('es-ES')}`;
+  closeNewProjectModal();
+  doNewProject(name);
+}
+
+async function deleteProjectFromHome(id, e) {
+  e.stopPropagation();
+  if (_pendingDeleteProject === id) {
+    clearTimeout(_pendingDeleteProjectTimer);
+    _pendingDeleteProject = null;
+    await idbDelete(id);
+    renderHomeScreen();
+    toast('Proyecto eliminado');
+  } else {
+    _pendingDeleteProject = id;
+    clearTimeout(_pendingDeleteProjectTimer);
+    toast('¿Eliminar? Pulsa 🗑 de nuevo para confirmar');
+    _pendingDeleteProjectTimer = setTimeout(() => { _pendingDeleteProject = null; }, 3000);
+  }
+}
 
 // ═══════════════════════════════════════════════
 //  DRAWER
@@ -3801,6 +4093,10 @@ function closeSaveModal() {
 }
 document.getElementById('projectNameInput')?.addEventListener('keydown', e => {
   if (e.key === 'Enter') saveProject();
+});
+document.getElementById('newProjectNameInput')?.addEventListener('keydown', e => {
+  if (e.key === 'Enter') confirmNewProject();
+  if (e.key === 'Escape') closeNewProjectModal();
 });
 
 // ═══════════════════════════════════════════════
@@ -4854,12 +5150,15 @@ async function saveProject() {
   // Determinar ID y nombre: reusa los existentes si es un proyecto ya guardado
   const isOverwrite = _currentProjectId !== null;
   const id   = isOverwrite ? _currentProjectId : Date.now();
-  const name = isOverwrite
+  // Si el proyecto ya tiene nombre asignado (desde el modal de nuevo proyecto), usarlo directamente
+  const name = (_currentProjectName && !isOverwrite)
     ? _currentProjectName
-    : (document.getElementById('projectNameInput')?.value.trim() || `Proyecto ${new Date().toLocaleDateString('es-ES')}`);
+    : isOverwrite
+      ? _currentProjectName
+      : (document.getElementById('projectNameInput')?.value.trim() || `Proyecto ${new Date().toLocaleDateString('es-ES')}`);
 
-  // Verificar nombre duplicado solo al crear proyecto nuevo
-  if (!isOverwrite) {
+  // Verificar nombre duplicado solo al crear proyecto nuevo sin nombre previo
+  if (!isOverwrite && !_currentProjectName) {
     const existing = await idbGetAll();
     if (existing.some(p => p.name.trim().toLowerCase() === name.toLowerCase())) {
       toast(`Ya existe un proyecto llamado "${name}"`);
@@ -5007,9 +5306,9 @@ function newProject() {
   }
 }
 
-function doNewProject() {
+function doNewProject(projectName) {
   _currentProjectId   = null;
-  _currentProjectName = null;
+  _currentProjectName = projectName || null;
   _undoStack = []; _redoStack = []; _updateUndoRedoBtns();
   floors = [createFloor('Planta 1')];
   currentFloorIdx = 0;
@@ -5049,10 +5348,11 @@ function doNewProject() {
   updateCableList();
   closeDrawer();
   clearAutoSave(); // nuevo proyecto = borrar autosave anterior
-  // Forzar pantalla 1 directamente sin goStep (que tiene validaciones)
-  document.querySelectorAll('.screen').forEach((s, i) => s.classList.toggle('active', i === 0));
+  // Ir al paso 1 (subir plano) usando goStep con validaciones desactivadas temporalmente
+  document.querySelectorAll('.screen').forEach((s, i) => s.classList.toggle('active', i === 1));
+  document.getElementById('stepper').style.display = '';
   currentStep = 1;
-  toast('Nuevo proyecto');
+  if (projectName) toast(`Proyecto "${projectName}" creado`);
 }
 
 // Confirmación inline dentro del drawer (evita confirm() bloqueado en local)
@@ -5583,7 +5883,8 @@ function downloadPDF(blob, name) {
 //  PWA — Service Worker + Banner de instalación
 // ═══════════════════════════════════════════════
 
-// Al arrancar: migrar datos viejos y comprobar si hay trabajo sin guardar
+// Al arrancar: mostrar home, migrar datos viejos y comprobar si hay trabajo sin guardar
+goHome();
 migrateFromLocalStorage();
 checkAndRestoreAutoSave();
 
